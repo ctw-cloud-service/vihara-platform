@@ -1,7 +1,8 @@
 <!doctype html>
 <!-- ===========================================================================
   檔案名稱：core/admin/index.html（總管理頁）
-  檔案版本：v1.0.1（2026-10-25）
+  檔案版本：v1.1.0（2026-10-25）
+    v1.1.0：引用共用的 ../shared/ui.js；按鈕、輸入欄、對話框樣式移到 base.css v1.1.0（外觀不變）
     v1.0.1：代號欄寬依最長代號自動調整（代號字數不限，避免長代號被折行）
   用途說明：
     系統管理員（ctw.cloud.service）專用：開通精舍、修改精舍名稱、停用／重新啟用精舍、
@@ -10,7 +11,7 @@
   後端動作：系統.列出精舍、系統.開通精舍、系統.更新精舍、
             系統.新增精舍管理員、系統.停用精舍管理員（均在 核心_精舍管理.gs）
   相依檔案：../shared/config.js、../shared/api.js、../shared/auth.js、
-            ../shared/base.css、admin.js
+            ../shared/ui.js、../shared/base.css、admin.js
 =========================================================================== -->
 <html lang="zh-Hant-TW">
 <head>
@@ -23,7 +24,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../shared/base.css">
   <style>
-    /* ── 本頁專屬樣式（共用的顏色、匾額、按鈕在 base.css） ── */
+    /* ── 本頁專屬樣式（共用的顏色、匾額、按鈕、輸入欄、對話框在 base.css） ── */
 
     /* 身分列：與入口頁相同 */
     .身分列 {
@@ -38,26 +39,6 @@
     .工具列 { display: flex; gap: 0.75rem; align-items: center; margin: 1.5rem 0 0.5rem; flex-wrap: wrap; }
     .工具列 .輸入 { flex: 1; min-width: 12rem; }
     .統計 { margin: 0 0 0.25rem; }
-
-    /* 主要按鈕（實心），base.css 的 .按鈕 是外框樣式 */
-    .按鈕.主要 { background: var(--色-主); color: var(--色-面); }
-    .按鈕.主要:hover { background: var(--色-主深); }
-    .按鈕.警示 { border-color: var(--色-警示); color: var(--色-警示); }
-    .按鈕.警示:hover { background: var(--色-警示底); }
-    .按鈕.小 { font-size: 0.875rem; padding: 0.25rem 0.75rem; }
-
-    /* 輸入欄 */
-    .輸入 {
-      font: inherit; color: var(--色-字); width: 100%;
-      background: var(--色-面); border: 1px solid var(--色-線); border-radius: var(--圓角);
-      padding: 0.45rem 0.7rem;
-    }
-    .輸入:focus { outline: none; border-color: var(--色-主); box-shadow: 0 0 0 3px rgba(61, 107, 94, 0.15); }
-    .輸入[aria-invalid="true"] { border-color: var(--色-警示); }
-    .輸入.代號 { text-transform: uppercase; letter-spacing: 0.06em; }
-    .欄位 { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.9375rem; }
-    .欄位組 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem 1rem; }
-    .欄位組 .寬 { grid-column: 1 / -1; }
 
     /* 精舍清單：一列一個精舍，點開顯示管理內容（與入口頁一樣以分隔線區分） */
     .精舍清單 { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--色-線); }
@@ -85,8 +66,6 @@
     .管理內容 { padding: 0 0 1.5rem calc(var(--代號欄寬, 4.5rem) + 1rem); }
     .管理內容 h3 { font-size: 1rem; margin: 1.25rem 0 0.5rem; }
     .管理內容 h3:first-child { margin-top: 0; }
-    .列表單 { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: flex-end; }
-    .列表單 .欄位 { flex: 1; min-width: 11rem; }
     .管理員清單 { list-style: none; margin: 0; padding: 0; }
     .管理員清單 li {
       display: grid; grid-template-columns: 1fr auto; gap: 0 1rem; align-items: center;
@@ -96,18 +75,7 @@
     .管理員清單 li.停用 .姓名 { color: var(--色-淡字); text-decoration: line-through; }
     .空白提示 { padding: 1.5rem 0; color: var(--色-淡字); }
 
-    /* 對話框 */
-    dialog {
-      border: 1px solid var(--色-線); border-radius: 8px; padding: 1.5rem;
-      width: min(34rem, calc(100vw - 2rem)); background: var(--色-面); color: var(--色-字);
-    }
-    dialog::backdrop { background: rgba(30, 42, 40, 0.45); }
-    dialog h2 { margin: 0 0 0.25rem; font-size: 1.35rem; }
-    .對話框按鈕 { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.25rem; }
-    .表單錯誤 { color: var(--色-警示); min-height: 1.5em; margin: 0.75rem 0 0; font-size: 0.9375rem; }
-
     @media (max-width: 640px) {
-      .欄位組 { grid-template-columns: 1fr; }
       .管理內容 { padding-left: 0; }
       .精舍清單 summary { grid-template-columns: var(--代號欄寬, 3.5rem) 1fr auto; gap: 0.1rem 0.75rem; }
     }
@@ -192,6 +160,7 @@
   <script src="../shared/config.js"></script>
   <script src="../shared/api.js"></script>
   <script src="../shared/auth.js"></script>
+  <script src="../shared/ui.js"></script>
   <script src="admin.js"></script>
 </body>
 </html>

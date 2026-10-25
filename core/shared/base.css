@@ -1,7 +1,10 @@
 /* ============================================================================
    檔案名稱：core/shared/base.css
    所屬層級：前端／共用樣式
-   檔案版本：v1.0.0（2026-10-25）
+   檔案版本：v1.1.0（2026-10-25）
+     v1.1.0：由總管理頁移入按鈕變化（主要／警示／小）、輸入欄、欄位、列表單、對話框樣式，
+             供總管理頁與精舍設定頁共用
+     v1.0.0：初版
    用途說明：
      全平台共用的顏色、字體與基本元件。所有頁面共用同一份，改一處全站一致。
      視覺重點只有一個：左側直書的精舍「匾額」。其餘元素保持安靜。
@@ -111,6 +114,38 @@ a { color: var(--色-主); }
 }
 .按鈕:hover { background: rgba(61, 107, 94, 0.08); }
 .按鈕[disabled] { opacity: 0.5; cursor: default; }
+/* 主要按鈕（實心）、警示按鈕（紅框）、小按鈕 */
+.按鈕.主要 { background: var(--色-主); color: var(--色-面); }
+.按鈕.主要:hover { background: var(--色-主深); }
+.按鈕.警示 { border-color: var(--色-警示); color: var(--色-警示); }
+.按鈕.警示:hover { background: var(--色-警示底); }
+.按鈕.小 { font-size: 0.875rem; padding: 0.25rem 0.75rem; }
+
+/* ── 輸入欄與表單 ── */
+.輸入 {
+  font: inherit; color: var(--色-字); width: 100%;
+  background: var(--色-面); border: 1px solid var(--色-線); border-radius: var(--圓角);
+  padding: 0.45rem 0.7rem;
+}
+.輸入:focus { outline: none; border-color: var(--色-主); box-shadow: 0 0 0 3px rgba(61, 107, 94, 0.15); }
+.輸入[aria-invalid="true"] { border-color: var(--色-警示); }
+.輸入.代號 { text-transform: uppercase; letter-spacing: 0.06em; }
+.欄位 { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.9375rem; }
+.欄位組 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem 1rem; }
+.欄位組 .寬 { grid-column: 1 / -1; }
+/* 一列排開的小表單（欄位＋按鈕） */
+.列表單 { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: flex-end; }
+.列表單 .欄位 { flex: 1; min-width: 11rem; }
+
+/* ── 對話框 ── */
+dialog {
+  border: 1px solid var(--色-線); border-radius: 8px; padding: 1.5rem;
+  width: min(34rem, calc(100vw - 2rem)); background: var(--色-面); color: var(--色-字);
+}
+dialog::backdrop { background: rgba(30, 42, 40, 0.45); }
+dialog h2 { margin: 0 0 0.25rem; font-size: 1.35rem; }
+.對話框按鈕 { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.25rem; }
+.表單錯誤 { color: var(--色-警示); min-height: 1.5em; margin: 0.75rem 0 0; font-size: 0.9375rem; }
 
 /* ── 訊息 ── */
 .訊息 {
@@ -135,6 +170,7 @@ a { color: var(--色-主); }
     gap: 1.5rem;
     padding-top: 1rem;
   }
+  .欄位組 { grid-template-columns: 1fr; }
   .匾額 { position: static; }
   .匾額框 { min-height: 0; padding: 1rem 0.5rem; }
   .匾額 h1 {
