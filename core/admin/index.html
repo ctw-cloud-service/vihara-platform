@@ -1,7 +1,8 @@
 <!doctype html>
 <!-- ===========================================================================
   檔案名稱：core/admin/index.html（總管理頁）
-  檔案版本：v1.0.0（2026-10-25）
+  檔案版本：v1.0.1（2026-10-25）
+    v1.0.1：代號欄寬依最長代號自動調整（代號字數不限，避免長代號被折行）
   用途說明：
     系統管理員（ctw.cloud.service）專用：開通精舍、修改精舍名稱、停用／重新啟用精舍、
     新增／停用／重新啟用精舍管理員。看不到任何精舍內部資料。
@@ -62,7 +63,8 @@
     .精舍清單 { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--色-線); }
     .精舍清單 > li { border-bottom: 1px solid var(--色-線); }
     .精舍清單 summary {
-      display: grid; grid-template-columns: 4.5rem 1fr auto; gap: 0.1rem 1rem;
+      /* 代號欄寬由 admin.js 依最長代號設定 --代號欄寬，各列對齊 */
+      display: grid; grid-template-columns: var(--代號欄寬, 4.5rem) 1fr auto; gap: 0.1rem 1rem;
       padding: 1rem 0; cursor: pointer; list-style: none;
     }
     .精舍清單 summary::-webkit-details-marker { display: none; }
@@ -70,7 +72,7 @@
     .精舍代號 {
       grid-row: 1 / span 2; align-self: center;
       font-family: var(--字-宋); font-weight: 700; letter-spacing: 0.06em;
-      color: var(--色-主深); word-break: break-all;
+      color: var(--色-主深); overflow-wrap: anywhere;   /* 超過欄寬上限才折行 */
     }
     .精舍名稱 { font-size: 1.125rem; font-weight: 700; }
     .精舍附註 { grid-column: 2; color: var(--色-淡字); font-size: 0.875rem; }
@@ -80,7 +82,7 @@
     details[open] > summary .精舍名稱 { color: var(--色-主); }
 
     /* 展開後的管理內容 */
-    .管理內容 { padding: 0 0 1.5rem 5.5rem; }
+    .管理內容 { padding: 0 0 1.5rem calc(var(--代號欄寬, 4.5rem) + 1rem); }
     .管理內容 h3 { font-size: 1rem; margin: 1.25rem 0 0.5rem; }
     .管理內容 h3:first-child { margin-top: 0; }
     .列表單 { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: flex-end; }
@@ -107,7 +109,7 @@
     @media (max-width: 640px) {
       .欄位組 { grid-template-columns: 1fr; }
       .管理內容 { padding-left: 0; }
-      .精舍清單 summary { grid-template-columns: 3.5rem 1fr auto; }
+      .精舍清單 summary { grid-template-columns: var(--代號欄寬, 3.5rem) 1fr auto; gap: 0.1rem 0.75rem; }
     }
   </style>
 </head>
