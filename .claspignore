@@ -1,0 +1,4 @@
+# 只把專案設定與各模組 gas/ 資料夾內的程式推送到 Apps Script，網頁檔案不推送
+**/**
+!appsscript.json
+!*/gas/*.gs
