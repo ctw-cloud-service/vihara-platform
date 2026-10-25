@@ -1,0 +1,195 @@
+<!doctype html>
+<!-- ===========================================================================
+  檔案名稱：admin/index.html（總管理頁）
+  檔案版本：v1.0.0（2026-10-25）
+  用途說明：
+    系統管理員（ctw.cloud.service）專用：開通精舍、修改精舍名稱、停用／重新啟用精舍、
+    新增／停用／重新啟用精舍管理員。看不到任何精舍內部資料。
+    網址：…/vihara-platform/admin/（不帶 ?site=）
+  後端動作：系統.列出精舍、系統.開通精舍、系統.更新精舍、
+            系統.新增精舍管理員、系統.停用精舍管理員（均在 核心_精舍管理.gs）
+  相依檔案：../shared/config.js、../shared/api.js、../shared/auth.js、
+            ../shared/base.css、admin.js
+=========================================================================== -->
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>總管理｜精舍雲端服務平台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/base.css">
+  <style>
+    /* ── 本頁專屬樣式（共用的顏色、匾額、按鈕在 base.css） ── */
+
+    /* 身分列：與入口頁相同 */
+    .身分列 {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 1rem; flex-wrap: wrap;
+      padding-bottom: 1.25rem; border-bottom: 1px solid var(--色-線);
+    }
+    .身分列 p { margin: 0; }
+    .身分列 .操作 { display: flex; gap: 0.75rem; align-items: baseline; }
+
+    /* 工具列：搜尋＋開通 */
+    .工具列 { display: flex; gap: 0.75rem; align-items: center; margin: 1.5rem 0 0.5rem; flex-wrap: wrap; }
+    .工具列 .輸入 { flex: 1; min-width: 12rem; }
+    .統計 { margin: 0 0 0.25rem; }
+
+    /* 主要按鈕（實心），base.css 的 .按鈕 是外框樣式 */
+    .按鈕.主要 { background: var(--色-主); color: var(--色-面); }
+    .按鈕.主要:hover { background: var(--色-主深); }
+    .按鈕.警示 { border-color: var(--色-警示); color: var(--色-警示); }
+    .按鈕.警示:hover { background: var(--色-警示底); }
+    .按鈕.小 { font-size: 0.875rem; padding: 0.25rem 0.75rem; }
+
+    /* 輸入欄 */
+    .輸入 {
+      font: inherit; color: var(--色-字); width: 100%;
+      background: var(--色-面); border: 1px solid var(--色-線); border-radius: var(--圓角);
+      padding: 0.45rem 0.7rem;
+    }
+    .輸入:focus { outline: none; border-color: var(--色-主); box-shadow: 0 0 0 3px rgba(61, 107, 94, 0.15); }
+    .輸入[aria-invalid="true"] { border-color: var(--色-警示); }
+    .輸入.代號 { text-transform: uppercase; letter-spacing: 0.06em; }
+    .欄位 { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.9375rem; }
+    .欄位組 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem 1rem; }
+    .欄位組 .寬 { grid-column: 1 / -1; }
+
+    /* 精舍清單：一列一個精舍，點開顯示管理內容（與入口頁一樣以分隔線區分） */
+    .精舍清單 { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--色-線); }
+    .精舍清單 > li { border-bottom: 1px solid var(--色-線); }
+    .精舍清單 summary {
+      display: grid; grid-template-columns: 4.5rem 1fr auto; gap: 0.1rem 1rem;
+      padding: 1rem 0; cursor: pointer; list-style: none;
+    }
+    .精舍清單 summary::-webkit-details-marker { display: none; }
+    .精舍清單 summary:hover .精舍名稱 { color: var(--色-主); }
+    .精舍代號 {
+      grid-row: 1 / span 2; align-self: center;
+      font-family: var(--字-宋); font-weight: 700; letter-spacing: 0.06em;
+      color: var(--色-主深); word-break: break-all;
+    }
+    .精舍名稱 { font-size: 1.125rem; font-weight: 700; }
+    .精舍附註 { grid-column: 2; color: var(--色-淡字); font-size: 0.875rem; }
+    .狀態字 { grid-row: 1 / span 2; grid-column: 3; align-self: center; font-size: 0.875rem; color: var(--色-淡字); }
+    li.已停用 .精舍名稱, li.已停用 .精舍代號 { color: var(--色-淡字); }
+    li.已停用 .狀態字 { color: var(--色-警示); }
+    details[open] > summary .精舍名稱 { color: var(--色-主); }
+
+    /* 展開後的管理內容 */
+    .管理內容 { padding: 0 0 1.5rem 5.5rem; }
+    .管理內容 h3 { font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+    .管理內容 h3:first-child { margin-top: 0; }
+    .列表單 { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: flex-end; }
+    .列表單 .欄位 { flex: 1; min-width: 11rem; }
+    .管理員清單 { list-style: none; margin: 0; padding: 0; }
+    .管理員清單 li {
+      display: grid; grid-template-columns: 1fr auto; gap: 0 1rem; align-items: center;
+      padding: 0.6rem 0; border-bottom: 1px dashed var(--色-線);
+    }
+    .管理員清單 .帳號 { color: var(--色-淡字); font-size: 0.875rem; word-break: break-all; }
+    .管理員清單 li.停用 .姓名 { color: var(--色-淡字); text-decoration: line-through; }
+    .空白提示 { padding: 1.5rem 0; color: var(--色-淡字); }
+
+    /* 對話框 */
+    dialog {
+      border: 1px solid var(--色-線); border-radius: 8px; padding: 1.5rem;
+      width: min(34rem, calc(100vw - 2rem)); background: var(--色-面); color: var(--色-字);
+    }
+    dialog::backdrop { background: rgba(30, 42, 40, 0.45); }
+    dialog h2 { margin: 0 0 0.25rem; font-size: 1.35rem; }
+    .對話框按鈕 { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.25rem; }
+    .表單錯誤 { color: var(--色-警示); min-height: 1.5em; margin: 0.75rem 0 0; font-size: 0.9375rem; }
+
+    @media (max-width: 640px) {
+      .欄位組 { grid-template-columns: 1fr; }
+      .管理內容 { padding-left: 0; }
+      .精舍清單 summary { grid-template-columns: 3.5rem 1fr auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="版面">
+    <aside class="匾額">
+      <div class="匾額框"><h1 id="匾額文字">總管理</h1></div>
+    </aside>
+
+    <section class="內容" aria-live="polite">
+      <!-- 狀態一：確認中 -->
+      <p id="區_載入" class="載入中">正在確認登入狀態…</p>
+
+      <!-- 狀態二：需要登入 -->
+      <div id="區_登入" hidden>
+        <h2>請以系統管理員帳號登入</h2>
+        <p class="說明">總管理只開放平台系統帳號。精舍人員請改用精舍的專屬網址。</p>
+        <div id="google按鈕" style="min-height:44px"></div>
+        <p id="登入中" class="載入中" hidden>正在登入…</p>
+      </div>
+
+      <!-- 狀態三：帳號不是系統管理員 -->
+      <div id="區_無權限" hidden>
+        <h2>這個帳號沒有總管理權限</h2>
+        <p class="說明">目前登入：<strong id="無權限帳號"></strong>。請登出後改用系統管理員帳號登入。</p>
+        <button type="button" class="按鈕" id="換帳號按鈕">登出並換帳號</button>
+      </div>
+
+      <!-- 狀態四：已登入 -->
+      <div id="區_已登入" hidden>
+        <div class="身分列">
+          <p id="問候"></p>
+          <span class="操作">
+            <a href="../">回入口頁</a>
+            <button type="button" class="按鈕" id="登出按鈕">登出</button>
+          </span>
+        </div>
+
+        <div class="工具列">
+          <input type="search" class="輸入" id="搜尋欄" placeholder="搜尋精舍代號或名稱" aria-label="搜尋精舍">
+          <button type="button" class="按鈕 主要" id="開通按鈕">開通精舍</button>
+        </div>
+        <p class="統計 小字" id="統計"></p>
+        <ul class="精舍清單" id="精舍清單"></ul>
+      </div>
+
+      <!-- 訊息（任何狀態都可能出現） -->
+      <p id="訊息" class="訊息" role="alert" hidden></p>
+    </section>
+  </main>
+
+  <!-- 對話框：開通精舍 -->
+  <dialog id="開通對話框" aria-labelledby="開通標題">
+    <form id="開通表單" novalidate>
+      <h2 id="開通標題">開通精舍</h2>
+      <p class="說明 小字">開通後會在雲端硬碟建立精舍資料夾與「精舍設定」試算表。精舍代號開通後不可修改。</p>
+      <div class="欄位組">
+        <label class="欄位">精舍代號（英文或數字）
+          <input class="輸入 代號" name="str精舍代號" maxlength="20" autocomplete="off" required>
+        </label>
+        <label class="欄位">精舍名稱
+          <input class="輸入" name="str精舍名稱" maxlength="40" required>
+        </label>
+        <label class="欄位 寬">第一位精舍管理員的 Google 帳號
+          <input class="輸入" name="str管理員帳號" type="email" maxlength="120" autocomplete="off" placeholder="name@gmail.com" required>
+        </label>
+        <label class="欄位">管理員姓名
+          <input class="輸入" name="str管理員姓名" maxlength="30" required>
+        </label>
+      </div>
+      <p class="表單錯誤" id="開通錯誤" role="alert"></p>
+      <div class="對話框按鈕">
+        <button type="button" class="按鈕" id="開通取消">取消</button>
+        <button type="submit" class="按鈕 主要" id="開通送出">開通精舍</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="../shared/config.js"></script>
+  <script src="../shared/api.js"></script>
+  <script src="../shared/auth.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>
