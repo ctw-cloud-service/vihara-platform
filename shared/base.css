@@ -1,0 +1,151 @@
+/* ============================================================================
+   檔案名稱：shared/base.css
+   所屬層級：前端／共用樣式
+   檔案版本：v1.0.0（2026-10-25）
+   用途說明：
+     全平台共用的顏色、字體與基本元件。所有頁面共用同一份，改一處全站一致。
+     視覺重點只有一個：左側直書的精舍「匾額」。其餘元素保持安靜。
+   ============================================================================ */
+
+/* ── 色彩與尺寸（只在這裡定義，其他地方一律引用變數） ── */
+:root {
+  --色-底: #EEF1EE;          /* 淡青灰底色 */
+  --色-面: #FFFFFF;          /* 內容面 */
+  --色-字: #2E3A3F;          /* 黛青主文字 */
+  --色-淡字: #5F6E6B;        /* 次要文字 */
+  --色-線: #D5DCD8;          /* 分隔線 */
+  --色-主: #3D6B5E;          /* 松綠：按鈕、連結 */
+  --色-主深: #2F5449;        /* 匾額底色 */
+  --色-銅: #A8874A;          /* 匾額細框 */
+  --色-匾字: #F3F1E8;        /* 匾額文字 */
+  --色-警示: #A3423A;        /* 錯誤訊息 */
+  --色-警示底: #F6E9E7;
+  --字-宋: 'Noto Serif TC', 'Noto Serif CJK TC', 'Songti TC', 'PMingLiU', serif;
+  --字-黑: 'Noto Sans TC', 'Noto Sans CJK TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+  --圓角: 6px;
+}
+
+/* ── 基本 ── */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--色-底);
+  color: var(--色-字);
+  font-family: var(--字-黑);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+a { color: var(--色-主); }
+[hidden] { display: none !important; }
+
+/* 鍵盤操作時清楚看見焦點 */
+:focus-visible {
+  outline: 3px solid var(--色-主);
+  outline-offset: 2px;
+}
+
+/* ── 版面：左匾額、右內容；窄螢幕改為上下 ── */
+.版面 {
+  display: grid;
+  grid-template-columns: minmax(7rem, 9rem) minmax(0, 40rem);
+  gap: clamp(1.5rem, 5vw, 4rem);
+  max-width: 60rem;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: clamp(1.5rem, 6vh, 4rem) clamp(1rem, 4vw, 2.5rem);
+  align-items: start;
+  align-content: start;   /* 內容少時不把列高撐開，避免手機上匾額下方出現空白 */
+}
+
+/* ── 匾額：直書精舍名稱（全站唯一的視覺重點） ── */
+.匾額 {
+  position: sticky;
+  top: 2rem;
+  background: var(--色-主深);
+  padding: 0.6rem;
+  border-radius: 2px;
+}
+.匾額框 {
+  border: 1px solid var(--色-銅);
+  outline: 1px solid var(--色-銅);
+  outline-offset: -5px;
+  padding: 1.6rem 0;
+  display: flex;
+  justify-content: center;
+  min-height: 18rem;
+}
+.匾額 h1 {
+  margin: 0;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  font-family: var(--字-宋);
+  font-weight: 700;
+  font-size: clamp(2rem, 4.2vw, 2.9rem);
+  letter-spacing: 0.32em;
+  line-height: 1;
+  color: var(--色-匾字);
+}
+
+/* ── 內容區 ── */
+.內容 { padding-top: 0.5rem; }
+.內容 h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.說明 { margin: 0 0 1.5rem; color: var(--色-淡字); max-width: 34em; }
+.小字 { font-size: 0.875rem; color: var(--色-淡字); }
+
+/* ── 按鈕 ── */
+.按鈕 {
+  font: inherit;
+  font-size: 0.9375rem;
+  padding: 0.45rem 1.1rem;
+  border-radius: var(--圓角);
+  border: 1px solid var(--色-主);
+  background: transparent;
+  color: var(--色-主);
+  cursor: pointer;
+}
+.按鈕:hover { background: rgba(61, 107, 94, 0.08); }
+.按鈕[disabled] { opacity: 0.5; cursor: default; }
+
+/* ── 訊息 ── */
+.訊息 {
+  margin: 1.25rem 0;
+  padding: 0.85rem 1rem;
+  border-left: 4px solid var(--色-警示);
+  background: var(--色-警示底);
+  color: var(--色-警示);
+  border-radius: 0 var(--圓角) var(--圓角) 0;
+}
+.訊息.一般 {
+  border-left-color: var(--色-主);
+  background: var(--色-面);
+  color: var(--色-字);
+}
+.載入中 { color: var(--色-淡字); }
+
+/* ── 手機：匾額改橫書置頂 ── */
+@media (max-width: 640px) {
+  .版面 {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    padding-top: 1rem;
+  }
+  .匾額 { position: static; }
+  .匾額框 { min-height: 0; padding: 1rem 0.5rem; }
+  .匾額 h1 {
+    writing-mode: horizontal-tb;
+    font-size: clamp(1.6rem, 7vw, 2.1rem);
+    letter-spacing: 0.24em;
+    text-align: center;
+  }
+}
+
+/* ── 尊重「減少動態效果」的系統設定 ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
