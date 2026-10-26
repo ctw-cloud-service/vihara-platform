@@ -1,0 +1,204 @@
+<!doctype html>
+<!-- ===========================================================================
+  檔案名稱：core/site/index.html（精舍設定頁）
+  檔案版本：v1.1.0（2026-10-26）
+    v1.1.0：操作畫面改為索引標籤（分頁）呈現：上方四個標籤，一次顯示一個區塊
+  用途說明：
+    精舍管理員專用，管理自家精舍的四件事：
+      一、功能開通     開通／關閉業務模組（例如法會活動）
+      二、人員與權限   新增、修改、停用承辦人；指派權限；重新同步副本共享
+      三、學員名冊與外部檔案   登記學員名冊、大車點名試算表
+      四、共用主檔     護法會組別、庫房位置等基本資料
+    網址：…/vihara-platform/core/site/?site=精舍代號（入口頁「精舍設定」會自動帶上）
+  後端動作：精舍.列出模組／開通模組／關閉模組（核心_模組管理）
+            精舍.列出人員／新增人員／更新人員／設定人員權限／取得權限選項／
+                 重新同步副本共享（核心_人員管理）
+            精舍.列出外部檔案／登記外部檔案（核心_外部檔案）
+            精舍.列出主檔種類／列出主檔／儲存主檔項目（核心_共用主檔）
+  相依檔案：../shared/config.js、../shared/api.js、../shared/auth.js、
+            ../shared/ui.js、../shared/base.css、site.js
+=========================================================================== -->
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>精舍設定｜精舍雲端服務平台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/base.css">
+  <style>
+    /* ── 本頁專屬樣式（共用的顏色、匾額、按鈕、輸入欄在 base.css） ── */
+
+    /* 身分列：與總管理頁相同 */
+    .身分列 {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 1rem; flex-wrap: wrap;
+      padding-bottom: 1.25rem; border-bottom: 1px solid var(--色-線);
+    }
+    .身分列 p { margin: 0; }
+    .身分列 .操作 { display: flex; gap: 0.75rem; align-items: baseline; }
+    .頁面說明 { margin: 1.25rem 0 0.5rem; }
+
+    /* ── 索引標籤：上方一排四個標籤，一次顯示一個區塊 ── */
+    .分頁列 {
+      display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin: 1.25rem 0 0; border-bottom: 1px solid var(--色-線);
+    }
+    .分頁 {
+      font: inherit; background: transparent; border: 0; cursor: pointer;
+      border-bottom: 3px solid transparent; margin-bottom: -1px;
+      padding: 0.7rem 0.4rem 0.6rem; color: var(--色-淡字);
+      display: flex; flex-direction: column; align-items: center; gap: 0.1rem; line-height: 1.35;
+    }
+    .分頁序號 { font-family: var(--字-宋); font-weight: 700; font-size: 0.875rem; }
+    .分頁名稱 { font-weight: 700; font-size: 0.9375rem; text-align: center; }
+    .分頁:hover { color: var(--色-主); background: rgba(61, 107, 94, 0.05); }
+    .分頁[aria-selected="true"] { color: var(--色-主深); border-bottom-color: var(--色-主); }
+    .分頁[aria-selected="true"] .分頁序號 { color: var(--色-主); }
+    .分頁面板 { padding: 1rem 0 1.75rem; }
+    .分頁摘要 { margin: 0 0 1rem; color: var(--色-淡字); font-size: 0.875rem; }
+    .區塊內容 h3 { font-size: 1rem; margin: 1.5rem 0 0.5rem; }
+    .區塊內容 h3:first-child, .區塊內容 > .訊息 + h3 { margin-top: 0.25rem; }
+    .區塊提示 { margin: 0 0 0.75rem; }
+
+    /* ── 區塊內的項目清單（模組、承辦人、外部檔案、主檔項目） ── */
+    .項目清單 { list-style: none; margin: 0; padding: 0; }
+    .項目清單 > li { border-bottom: 1px dashed var(--色-線); }
+    .項目清單 > li:last-child { border-bottom: none; }
+    .項目列 {
+      display: grid; grid-template-columns: 1fr auto; gap: 0.1rem 1rem; align-items: center;
+      padding: 0.75rem 0;
+    }
+    .項目名稱 { font-weight: 700; }
+    .項目附註 { grid-column: 1; color: var(--色-淡字); font-size: 0.875rem; word-break: break-all; }
+    .項目操作 { grid-row: 1 / span 2; grid-column: 2; display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
+    .狀態標 {
+      display: inline-block; margin-left: 0.5rem; padding: 0 0.5rem;
+      font-size: 0.8125rem; font-weight: 500; border-radius: 999px;
+      border: 1px solid var(--色-線); color: var(--色-淡字); vertical-align: 0.1em;
+    }
+    .狀態標.啟用 { border-color: var(--色-主); color: var(--色-主); }
+    .狀態標.停用 { border-color: var(--色-警示); color: var(--色-警示); }
+    li.已停用 .項目名稱 { color: var(--色-淡字); }
+
+    /* 可展開的項目（承辦人、外部檔案、主檔種類） */
+    .項目 > summary { list-style: none; cursor: pointer; }
+    .項目 > summary::-webkit-details-marker { display: none; }
+    .項目 > summary:hover .項目名稱, .項目[open] > summary .項目名稱 { color: var(--色-主); }
+    .項目內容 { padding: 0.25rem 0 1.25rem; }
+    .項目內容 h4 { font-size: 0.9375rem; margin: 1rem 0 0.4rem; }
+    .項目內容 h4:first-child, .項目內容 > .訊息 + h4 { margin-top: 0; }
+
+    /* 權限勾選 */
+    .權限組 { border: 0; margin: 0 0 0.75rem; padding: 0; }
+    .權限組 legend { font-weight: 500; padding: 0; margin-bottom: 0.25rem; }
+    .權限項 { display: grid; grid-template-columns: auto 1fr; gap: 0 0.5rem; align-items: start; padding: 0.2rem 0; cursor: pointer; }
+    .權限項 input { margin-top: 0.45rem; width: 1rem; height: 1rem; accent-color: var(--色-主); }
+    .權限項 .小字 { grid-column: 2; }
+
+    /* 主檔項目：一列一個表單 */
+    .主檔表 { list-style: none; margin: 0 0 1rem; padding: 0; }
+    .主檔表 > li { padding: 0.6rem 0; border-bottom: 1px dashed var(--色-線); }
+    .主檔表 .代號 { font-family: var(--字-宋); font-weight: 700; color: var(--色-主深); min-width: 3.5rem; align-self: center; }
+    .主檔表 .欄位.窄 { flex: 0 0 5rem; min-width: 5rem; }
+    .主檔表 .欄位.狀態欄 { flex: 0 0 6rem; min-width: 6rem; }
+    .主檔表 li.已停用 .輸入 { color: var(--色-淡字); }
+
+    .空白提示 { padding: 0.9rem 0; color: var(--色-淡字); }
+    .問題清單 { margin: 0.5rem 0 0; padding-left: 1.25rem; color: var(--色-警示); font-size: 0.9375rem; }
+    .程式碼 { font-family: ui-monospace, Consolas, monospace; font-size: 0.875rem; background: var(--色-底); padding: 0 0.3rem; border-radius: 3px; }
+
+    @media (max-width: 640px) {
+      .分頁列 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .分頁 { flex-direction: row; justify-content: center; gap: 0.4rem; }
+      .項目列 { grid-template-columns: 1fr; }
+      .項目操作 { grid-row: auto; grid-column: 1; justify-content: flex-start; margin-top: 0.4rem; }
+    }
+  </style>
+</head>
+<body>
+  <main class="版面">
+    <!-- 匾額：登入後顯示精舍名稱 -->
+    <aside class="匾額">
+      <div class="匾額框"><h1 id="匾額文字">精舍設定</h1></div>
+    </aside>
+
+    <section class="內容" aria-live="polite">
+      <!-- 狀態一：確認中 -->
+      <p id="區_載入" class="載入中">正在確認登入狀態…</p>
+
+      <!-- 狀態二：需要登入 -->
+      <div id="區_登入" hidden>
+        <h2>請以精舍管理員的 Google 帳號登入</h2>
+        <p class="說明" id="登入說明">精舍設定只開放給精舍管理員。</p>
+        <div id="google按鈕" style="min-height:44px"></div>
+        <p id="登入中" class="載入中" hidden>正在登入…</p>
+      </div>
+
+      <!-- 狀態三：不是精舍管理員 -->
+      <div id="區_無權限" hidden>
+        <h2>精舍設定只限精舍管理員使用</h2>
+        <p class="說明">目前登入：<strong id="無權限帳號"></strong>（<span id="無權限角色"></span>）。如需調整設定，請洽精舍管理員。</p>
+        <span class="操作" style="display:flex;gap:0.75rem;align-items:baseline">
+          <a id="無權限回入口" href="../">回入口頁</a>
+          <button type="button" class="按鈕" id="換帳號按鈕">登出並換帳號</button>
+        </span>
+      </div>
+
+      <!-- 狀態四：已登入 -->
+      <div id="區_已登入" hidden>
+        <div class="身分列">
+          <p id="問候"></p>
+          <span class="操作">
+            <a id="回入口頁" href="../">回入口頁</a>
+            <button type="button" class="按鈕" id="登出按鈕">登出</button>
+          </span>
+        </div>
+        <div id="區塊清單">
+          <!-- 索引標籤（方向鍵可切換） -->
+          <nav class="分頁列" role="tablist" aria-label="精舍設定項目">
+            <button type="button" class="分頁" role="tab" id="分頁_功能開通" data-區塊="功能開通" aria-controls="面板_功能開通" aria-selected="false" tabindex="-1">
+              <span class="分頁序號">一</span><span class="分頁名稱">功能開通</span></button>
+            <button type="button" class="分頁" role="tab" id="分頁_人員與權限" data-區塊="人員與權限" aria-controls="面板_人員與權限" aria-selected="false" tabindex="-1">
+              <span class="分頁序號">二</span><span class="分頁名稱">人員與權限</span></button>
+            <button type="button" class="分頁" role="tab" id="分頁_外部檔案" data-區塊="外部檔案" aria-controls="面板_外部檔案" aria-selected="false" tabindex="-1">
+              <span class="分頁序號">三</span><span class="分頁名稱">學員名冊與外部檔案</span></button>
+            <button type="button" class="分頁" role="tab" id="分頁_共用主檔" data-區塊="共用主檔" aria-controls="面板_共用主檔" aria-selected="false" tabindex="-1">
+              <span class="分頁序號">四</span><span class="分頁名稱">共用主檔</span></button>
+          </nav>
+
+          <!-- 四個面板：一次只顯示一個 -->
+          <section class="分頁面板" role="tabpanel" id="面板_功能開通" data-區塊="功能開通" aria-labelledby="分頁_功能開通" hidden>
+            <p class="分頁摘要" id="摘要_功能開通">開通或關閉精舍要使用的功能</p>
+            <div class="區塊內容" id="內容_功能開通"></div>
+          </section>
+          <section class="分頁面板" role="tabpanel" id="面板_人員與權限" data-區塊="人員與權限" aria-labelledby="分頁_人員與權限" hidden>
+            <p class="分頁摘要" id="摘要_人員與權限">承辦人名單與各功能的權限</p>
+            <div class="區塊內容" id="內容_人員與權限"></div>
+          </section>
+          <section class="分頁面板" role="tabpanel" id="面板_外部檔案" data-區塊="外部檔案" aria-labelledby="分頁_外部檔案" hidden>
+            <p class="分頁摘要" id="摘要_外部檔案">登記學員名冊、大車點名試算表</p>
+            <div class="區塊內容" id="內容_外部檔案"></div>
+          </section>
+          <section class="分頁面板" role="tabpanel" id="面板_共用主檔" data-區塊="共用主檔" aria-labelledby="分頁_共用主檔" hidden>
+            <p class="分頁摘要" id="摘要_共用主檔">護法會組別、庫房位置等基本資料</p>
+            <div class="區塊內容" id="內容_共用主檔"></div>
+          </section>
+        </div>
+      </div>
+
+      <!-- 頁面層級訊息（任何狀態都可能出現） -->
+      <p id="訊息" class="訊息" role="alert" hidden></p>
+    </section>
+  </main>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="../shared/config.js"></script>
+  <script src="../shared/api.js"></script>
+  <script src="../shared/auth.js"></script>
+  <script src="../shared/ui.js"></script>
+  <script src="site.js"></script>
+</body>
+</html>

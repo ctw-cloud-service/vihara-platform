@@ -1,7 +1,8 @@
 // ============================================================================
 // 檔案名稱：core/shared/config.js
 // 所屬層級：前端／共用設定
-// 檔案版本：v1.2.0（2026-10-25）
+// 檔案版本：v1.3.0（2026-10-26）
+//   v1.3.0：精舍設定頁（core/site/）完成，改為已上線；新增 str系統帳號（登記外部檔案時提示共享對象）
 //   v1.2.0：總管理頁（core/admin/）完成，改為已上線
 //   v1.1.0：repo 改為每模組一個頂層資料夾；頁面路徑改為「相對於網站根目錄」，
 //           網站根目錄由本檔位置自動推算（本機測試與 GitHub Pages 都適用）
@@ -26,6 +27,9 @@ const obj平台設定 = Object.freeze({
   // 平台名稱（未指定精舍時，匾額顯示這個名稱）
   str平台名稱: '精舍雲端服務平台',
 
+  // 系統帳號：精舍自有的檔案（學員名冊、大車點名試算表）要共享給這個帳號
+  str系統帳號: 'ctw.cloud.service@gmail.com',
+
   // Google 登入用的 OAuth 用戶端 ID
   strOAuth用戶端ID: '902061096910-i5eeploiu9h0jmj3uuddpspr0fo0cop6.apps.googleusercontent.com',
 
@@ -46,7 +50,7 @@ const obj平台設定 = Object.freeze({
 
   // 依角色出現在入口頁的管理功能（屬於平台核心，放在 core/ 底下）
   obj管理頁面: {
-    精舍設定: { str路徑: 'core/site/', str說明: '人員與權限、共用主檔、學員名冊', bool已上線: false },
+    精舍設定: { str路徑: 'core/site/', str說明: '功能開通、人員與權限、學員名冊、共用主檔', bool已上線: true },
     總管理: { str路徑: 'core/admin/', str說明: '開通精舍、登記精舍管理員', bool已上線: true }
   }
 });
