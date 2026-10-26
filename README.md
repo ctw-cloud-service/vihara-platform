@@ -14,7 +14,7 @@ vihara-platform/
 ├─ .claspignore       只推送 appsscript.json 與各模組 gas/ 內的程式
 ├─ core/              平台核心
 │   ├─ index.html     入口頁：Google 登入、身分、可進入的功能
-│   ├─ shared/        全站共用：config.js、api.js、auth.js、base.css
+│   ├─ shared/        全站共用：config.js、api.js、auth.js、ui.js、base.css
 │   ├─ admin/         總管理頁（系統管理員）
 │   ├─ site/          精舍設定頁（精舍管理員）
 │   └─ gas/           核心_*.gs、測試_*.gs
