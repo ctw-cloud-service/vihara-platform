@@ -1,0 +1,224 @@
+<!doctype html>
+<!-- ===========================================================================
+  檔案名稱：event/index.html（法會活動頁）
+  所屬模組：法會活動（event）
+  檔案版本：v1.0.0（2026-10-26）
+  用途說明：
+    精舍管理員與承辦人使用的法會活動頁，以索引標籤呈現，分頁內以卡片區分：
+      一、活動清單     新增活動（精舍管理員）、每場活動的狀態、同步、承辦人、結束／重新開啟
+      二、同步與整理   檢查與同步新報名、修改提醒、重複檢查與移除
+      （三、大車點名　四、法會報到　於第②③批加入）
+    網址：…/vihara-platform/event/?site=精舍代號（入口頁「法會活動」會自動帶上）
+  後端動作：event.列出活動／列出承辦人選項／新增活動／設定承辦人／設為結束／重新開啟
+            event.同步資料／檢查新回應／列出提醒／處理提醒
+            event.設定重複標示／查詢重複／移除重複
+  相依檔案：../core/shared/config.js、api.js、auth.js、ui.js、base.css、event.js
+=========================================================================== -->
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>法會活動｜精舍雲端服務平台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../core/shared/base.css">
+  <style>
+    /* ── 本頁專屬樣式（共用的顏色、匾額、按鈕、輸入欄在 base.css） ── */
+
+    /* 本頁內容較多，內容欄放寬 */
+    .版面 { grid-template-columns: minmax(7rem, 9rem) minmax(0, 46rem); max-width: 66rem; }
+
+    /* 身分列：與精舍設定頁相同 */
+    .身分列 {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 1rem; flex-wrap: wrap;
+      padding-bottom: 1.25rem; border-bottom: 1px solid var(--色-線);
+    }
+    .身分列 p { margin: 0; }
+    .身分列 .操作 { display: flex; gap: 0.75rem; align-items: baseline; }
+
+    /* ── 索引標籤 ── */
+    .分頁列 {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin: 1.25rem 0 0; border-bottom: 1px solid var(--色-線);
+    }
+    .分頁 {
+      font: inherit; background: transparent; border: 0; cursor: pointer;
+      border-bottom: 3px solid transparent; margin-bottom: -1px;
+      padding: 0.7rem 0.4rem 0.6rem; color: var(--色-淡字);
+      display: flex; flex-direction: column; align-items: center; gap: 0.1rem; line-height: 1.35;
+    }
+    .分頁序號 { font-family: var(--字-宋); font-weight: 700; font-size: 0.875rem; }
+    .分頁名稱 { font-weight: 700; font-size: 0.9375rem; text-align: center; }
+    .分頁:hover { color: var(--色-主); background: rgba(61, 107, 94, 0.05); }
+    .分頁[aria-selected="true"] { color: var(--色-主深); border-bottom-color: var(--色-主); }
+    .分頁[aria-selected="true"] .分頁序號 { color: var(--色-主); }
+    .分頁 .數字標 { margin-left: 0.3rem; }
+    .分頁面板 { padding: 1rem 0 1.75rem; }
+    .分頁摘要 { margin: 0 0 1rem; color: var(--色-淡字); font-size: 0.875rem; }
+
+    /* ── 卡片 ── */
+    .卡片清單 { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.85rem; }
+    .卡片 {
+      background: var(--色-面); border: 1px solid var(--色-線); border-radius: 8px;
+      padding: 1rem 1.25rem; box-shadow: 0 1px 2px rgba(30, 42, 40, 0.04);
+    }
+    section.卡片 { margin: 0 0 0.85rem; }
+    .卡片 h3 { font-size: 1rem; margin: 0 0 0.5rem; }
+    .卡片 .訊息 { margin: 0 0 0.75rem; }
+    .卡片.已結束 { background: var(--色-底); }
+    .卡片提示 { margin: 0 0 0.75rem; color: var(--色-淡字); font-size: 0.9375rem; }
+
+    /* 活動卡片 */
+    .活動標題列 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.5rem; }
+    .活動名稱 { font-weight: 700; font-size: 1.0625rem; }
+    .活動代號 { font-family: var(--字-宋); color: var(--色-淡字); font-size: 0.875rem; }
+    .活動資訊 { margin: 0.35rem 0 0.6rem; color: var(--色-淡字); font-size: 0.875rem; display: flex; flex-wrap: wrap; gap: 0.1rem 1.1rem; }
+    .活動操作 { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    .活動操作 a { font-size: 0.9375rem; margin-right: 0.25rem; }
+
+    .狀態標 {
+      display: inline-block; padding: 0 0.5rem;
+      font-size: 0.8125rem; font-weight: 500; border-radius: 999px;
+      border: 1px solid var(--色-線); color: var(--色-淡字); line-height: 1.6;
+    }
+    .狀態標.進行 { border-color: var(--色-主); color: var(--色-主); }
+    .狀態標.注意 { border-color: var(--色-銅); color: #7A5F2B; }
+    .狀態標.停用 { border-color: var(--色-警示); color: var(--色-警示); }
+    .數字標 {
+      display: inline-block; min-width: 1.35rem; padding: 0 0.35rem; border-radius: 999px;
+      background: var(--色-警示); color: #fff; font-size: 0.75rem; font-weight: 700; text-align: center; line-height: 1.35rem;
+    }
+
+    /* 可展開的編輯區（新增活動、設定承辦人） */
+    details.展開 > summary { list-style: none; cursor: pointer; }
+    details.展開 > summary::-webkit-details-marker { display: none; }
+    details.展開 > summary .按鈕 { pointer-events: none; }
+    .展開內容 { margin-top: 0.85rem; padding-top: 0.85rem; border-top: 1px dashed var(--色-線); }
+    .選項組 { border: 0; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+    .選項組 legend { font-size: 0.9375rem; padding: 0; margin-bottom: 0.25rem; }
+    .選項 { display: grid; grid-template-columns: auto 1fr; gap: 0 0.5rem; align-items: start; cursor: pointer; }
+    .選項 input { margin-top: 0.45rem; width: 1rem; height: 1rem; accent-color: var(--色-主); }
+    .選項 .小字 { grid-column: 2; }
+    .表單按鈕 { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 1rem; }
+
+    /* 清單（明細、提醒、重複組） */
+    .明細 { margin: 0.5rem 0 0; padding-left: 1.2rem; font-size: 0.9375rem; }
+    .明細 li { margin: 0.15rem 0; }
+    .提醒清單 { list-style: none; margin: 0; padding: 0; }
+    .提醒清單 > li { padding: 0.75rem 0; border-bottom: 1px dashed var(--色-線); display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 1rem; }
+    .提醒清單 > li:last-child { border-bottom: none; }
+    .提醒標題 { font-weight: 500; }
+    .提醒說明 { grid-column: 1; font-size: 0.9375rem; }
+    .提醒附註 { grid-column: 1; font-size: 0.8125rem; color: var(--色-淡字); }
+    .提醒操作 { grid-row: 1 / span 3; grid-column: 2; display: flex; gap: 0.5rem; align-items: start; }
+    .重複表 { width: 100%; border-collapse: collapse; font-size: 0.9375rem; margin-top: 0.5rem; }
+    .重複表 th, .重複表 td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--色-線); vertical-align: top; }
+    .重複表 th { color: var(--色-淡字); font-weight: 500; }
+    .空白提示 { padding: 0.6rem 0; color: var(--色-淡字); }
+    .程式碼 { font-family: ui-monospace, Consolas, monospace; font-size: 0.875rem; background: var(--色-底); padding: 0 0.3rem; border-radius: 3px; word-break: break-all; }
+    .工具列 { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin-bottom: 0.75rem; }
+    .工具列 label { font-size: 0.9375rem; display: flex; gap: 0.35rem; align-items: center; cursor: pointer; }
+    select.輸入 { width: auto; min-width: 14rem; max-width: 100%; }
+
+    /* 後端訊息可能有多行（明細），保留換行 */
+    .訊息 { white-space: pre-line; }
+
+    /* 對話框內容 */
+    #確認內容 { margin: 0.5rem 0 0; }
+    #確認內容 p { margin: 0.4rem 0; }
+
+    @media (max-width: 640px) {
+      .版面 { grid-template-columns: 1fr; }
+      .分頁 { flex-direction: row; justify-content: center; gap: 0.4rem; }
+      .提醒清單 > li { grid-template-columns: 1fr; }
+      .提醒操作 { grid-row: auto; grid-column: 1; margin-top: 0.4rem; }
+      select.輸入 { min-width: 0; width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="版面">
+    <!-- 匾額：登入後顯示精舍名稱 -->
+    <aside class="匾額">
+      <div class="匾額框"><h1 id="匾額文字">法會活動</h1></div>
+    </aside>
+
+    <section class="內容" aria-live="polite">
+      <!-- 狀態一：確認中 -->
+      <p id="區_載入" class="載入中">正在確認登入狀態…</p>
+
+      <!-- 狀態二：需要登入 -->
+      <div id="區_登入" hidden>
+        <h2>請以 Google 帳號登入</h2>
+        <p class="說明">法會活動開放給精舍管理員與承辦人。</p>
+        <div id="google按鈕" style="min-height:44px"></div>
+        <p id="登入中" class="載入中" hidden>正在登入…</p>
+      </div>
+
+      <!-- 狀態三：不能使用 -->
+      <div id="區_無權限" hidden>
+        <h2 id="無權限標題">無法使用法會活動</h2>
+        <p class="說明" id="無權限說明"></p>
+        <span style="display:flex;gap:0.75rem;align-items:baseline">
+          <a id="無權限回入口" href="../core/">回入口頁</a>
+          <button type="button" class="按鈕" id="換帳號按鈕">登出並換帳號</button>
+        </span>
+      </div>
+
+      <!-- 狀態四：已登入 -->
+      <div id="區_已登入" hidden>
+        <div class="身分列">
+          <p id="問候"></p>
+          <span class="操作">
+            <a id="回入口頁" href="../core/">回入口頁</a>
+            <button type="button" class="按鈕" id="登出按鈕">登出</button>
+          </span>
+        </div>
+
+        <div id="區塊清單">
+          <nav class="分頁列" role="tablist" aria-label="法會活動項目">
+            <button type="button" class="分頁" role="tab" id="分頁_活動清單" data-區塊="活動清單" aria-controls="面板_活動清單" aria-selected="false" tabindex="-1">
+              <span class="分頁序號">一</span><span class="分頁名稱">活動清單</span></button>
+            <button type="button" class="分頁" role="tab" id="分頁_同步與整理" data-區塊="同步與整理" aria-controls="面板_同步與整理" aria-selected="false" tabindex="-1">
+              <span class="分頁序號">二</span><span class="分頁名稱">同步與整理<span class="數字標" id="提醒數標" hidden></span></span></button>
+          </nav>
+
+          <section class="分頁面板" role="tabpanel" id="面板_活動清單" data-區塊="活動清單" aria-labelledby="分頁_活動清單" hidden>
+            <p class="分頁摘要" id="摘要_活動清單">各場法會的狀態與承辦人</p>
+            <div id="內容_活動清單"></div>
+          </section>
+          <section class="分頁面板" role="tabpanel" id="面板_同步與整理" data-區塊="同步與整理" aria-labelledby="分頁_同步與整理" hidden>
+            <p class="分頁摘要" id="摘要_同步與整理">下載新報名、處理修改提醒、檢查重複</p>
+            <div id="內容_同步與整理"></div>
+          </section>
+        </div>
+      </div>
+
+      <!-- 頁面層級訊息 -->
+      <p id="訊息" class="訊息" role="alert" hidden></p>
+    </section>
+  </main>
+
+  <!-- 確認對話框（結束活動、移除重複等不易復原的動作） -->
+  <dialog id="確認框" aria-labelledby="確認標題">
+    <form method="dialog">
+      <h2 id="確認標題">請確認</h2>
+      <div id="確認內容"></div>
+      <div class="對話框按鈕">
+        <button type="submit" class="按鈕" value="取消">取消</button>
+        <button type="submit" class="按鈕 主要" value="確定" id="確認按鈕">確定</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="../core/shared/config.js"></script>
+  <script src="../core/shared/api.js"></script>
+  <script src="../core/shared/auth.js"></script>
+  <script src="../core/shared/ui.js"></script>
+  <script src="event.js"></script>
+</body>
+</html>
