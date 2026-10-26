@@ -1,7 +1,8 @@
 // ============================================================================
 // 檔案名稱：core/site/site.js
 // 所屬層級：前端／精舍設定頁
-// 檔案版本：v1.1.0（2026-10-26）
+// 檔案版本：v1.2.0（2026-10-26）
+//   v1.2.0：每個分頁內的功能項目以卡片區分（功能、人員各群組、外部檔案、主檔種類各一張）
 //   v1.1.0：操作畫面改為索引標籤（分頁）：新增「切換分頁」，目前分頁記在網址 #（重新整理後停在同一頁），
 //           標籤可用方向鍵切換；其餘功能不變
 //   v1.0.0：初版（四個可展開區塊）
@@ -519,7 +520,7 @@ function 畫功能開通() {
       str按鈕 = `<button type="button" class="按鈕 小 主要" data-動作="開通模組" data-代號="${str代號}">開通</button>`;
     }
 
-    return `<li data-代號="${str代號}">
+    return `<li class="卡片${obj.str狀態 === '停用' ? ' 已停用' : ''}" data-代號="${str代號}">
       <div class="項目列">
         <span><span class="項目名稱">${跳脫HTML(obj.str模組名稱)}</span>${str狀態標}</span>
         <span class="項目附註">${跳脫HTML(str附註)}</span>
@@ -529,7 +530,7 @@ function 畫功能開通() {
   }).join('');
 
   el內容.innerHTML = `<p class="說明 小字 區塊提示">開通後，請到「人員與權限」為承辦人指派該功能的權限。關閉功能不會刪除資料，重新開通即可繼續使用。</p>
-    <ul class="項目清單">${str清單}</ul>`;
+    <ul class="卡片清單">${str清單}</ul>`;
 }
 
 
@@ -654,15 +655,19 @@ function 畫人員與權限() {
     }).join('')}</ul>`;
 
   取得區塊內容('人員與權限').innerHTML = `
+    <section class="卡片">
     <h3>精舍管理員</h3>
     <p class="說明 小字 區塊提示">精舍管理員擁有全部權限，由系統管理員登記；如需增減請洽系統管理員。</p>
     <ul class="項目清單">${str管理員}</ul>
+    </section>
 
+    <section class="卡片">
     <h3>承辦人</h3>
     <p class="說明 小字 區塊提示">點選承辦人可修改姓名、停用，以及勾選可使用的功能權限。${obj頁面狀態.arr權限選項.length === 0 ? '（尚未開通任何功能，暫時沒有權限可指派。）' : ''}</p>
     <ul class="項目清單" id="承辦人清單">${str承辦人}</ul>
+    </section>
 
-    <div id="新增人員區">
+    <section class="卡片" id="新增人員區">
     <h3>新增承辦人</h3>
     <form class="列表單" data-表單="新增人員" novalidate>
       <label class="欄位">Google 帳號
@@ -673,14 +678,14 @@ function 畫人員與權限() {
       </label>
       <button type="submit" class="按鈕 主要">新增承辦人</button>
     </form>
-    </div>
+    </section>
 
-    <h3>活動副本共享</h3>
-    <p class="說明 小字 區塊提示">人員異動時系統會自動調整活動副本的共享。若發現有人打不開副本、或曾在雲端硬碟手動改過共享，可按此重新檢查一次。</p>
-    <div id="同步區">
+    <section class="卡片" id="同步區">
+      <h3>活動副本共享</h3>
+      <p class="說明 小字 區塊提示">人員異動時系統會自動調整活動副本的共享。若發現有人打不開副本、或曾在雲端硬碟手動改過共享，可按此重新檢查一次。</p>
       <button type="button" class="按鈕" data-動作="重新同步">重新同步副本共享</button>
       ${str問題}
-    </div>`;
+    </section>`;
 }
 
 
@@ -937,7 +942,7 @@ function 畫外部檔案() {
       ? `${obj.str檔名 || '（未記錄檔名）'}${obj.str分頁名稱 ? `　分頁：${obj.str分頁名稱}` : ''}`
       : '尚未登記';
 
-    return `<li>
+    return `<li class="卡片">
       <details class="項目" data-項目="${str項目}"${bool展開 ? ' open' : ''}>
         <summary class="項目列">
           <span><span class="項目名稱">${str項目}</span>${obj.bool已登記 ? 狀態標HTML('已登記', '啟用') : 狀態標HTML('未登記', '停用')}</span>
@@ -968,7 +973,7 @@ function 畫外部檔案() {
 
   取得區塊內容('外部檔案').innerHTML = arr項目.length === 0
     ? '<p class="空白提示">目前沒有需要登記的外部檔案。</p>'
-    : `<ul class="項目清單" id="外部檔案清單">${str清單}</ul>`;
+    : `<ul class="卡片清單" id="外部檔案清單">${str清單}</ul>`;
 }
 
 
@@ -1094,7 +1099,7 @@ function 畫共用主檔() {
     const str附註 = arr項目
       ? `啟用 ${arr項目.filter(function (o) { return o.str狀態 === '啟用'; }).length} 項`
       : '點選查看與維護';
-    return `<li>
+    return `<li class="卡片">
       <details class="項目" data-主檔="${str代號}"${bool展開 ? ' open' : ''}>
         <summary class="項目列">
           <span class="項目名稱">${跳脫HTML(obj.str主檔名稱)}</span>
@@ -1106,7 +1111,7 @@ function 畫共用主檔() {
   }).join('');
 
   取得區塊內容('共用主檔').innerHTML = `<p class="說明 小字 區塊提示">每筆資料有固定代號，各功能只記代號，改名稱不影響已使用的資料。資料不能刪除，不再使用請改為「停用」。</p>
-    <ul class="項目清單" id="主檔清單">${str清單}</ul>`;
+    <ul class="卡片清單" id="主檔清單">${str清單}</ul>`;
 }
 
 

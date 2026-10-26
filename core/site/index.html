@@ -1,7 +1,8 @@
 <!doctype html>
 <!-- ===========================================================================
   檔案名稱：core/site/index.html（精舍設定頁）
-  檔案版本：v1.1.0（2026-10-26）
+  檔案版本：v1.2.0（2026-10-26）
+    v1.2.0：每個分頁內的功能項目以卡片區分
     v1.1.0：操作畫面改為索引標籤（分頁）呈現：上方四個標籤，一次顯示一個區塊
   用途說明：
     精舍管理員專用，管理自家精舍的四件事：
@@ -63,7 +64,22 @@
     .區塊內容 h3:first-child, .區塊內容 > .訊息 + h3 { margin-top: 0.25rem; }
     .區塊提示 { margin: 0 0 0.75rem; }
 
-    /* ── 區塊內的項目清單（模組、承辦人、外部檔案、主檔項目） ── */
+    /* ── 卡片：每個分頁內的功能項目各自一張 ── */
+    .卡片清單 { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.85rem; }
+    .卡片 {
+      background: var(--色-面); border: 1px solid var(--色-線); border-radius: 8px;
+      padding: 1rem 1.25rem; box-shadow: 0 1px 2px rgba(30, 42, 40, 0.04);
+    }
+    section.卡片 { margin: 0 0 0.85rem; }
+    .卡片 > h3:first-child, .卡片 > .訊息 + h3 { margin-top: 0; }
+    .卡片 > .區塊提示:last-child { margin-bottom: 0; }
+    .卡片.已停用 { background: var(--色-底); }
+    .卡片 > .項目列, .卡片 > details > summary.項目列 { padding: 0; }
+    .卡片 > details[open] > summary.項目列 { padding-bottom: 0.75rem; border-bottom: 1px solid var(--色-線); margin-bottom: 0.75rem; }
+    .卡片 > details > .項目內容 { padding-bottom: 0.25rem; }
+    .卡片 .訊息 { margin-top: 0; }
+
+    /* ── 卡片內的項目清單（承辦人、精舍管理員） ── */
     .項目清單 { list-style: none; margin: 0; padding: 0; }
     .項目清單 > li { border-bottom: 1px dashed var(--色-線); }
     .項目清單 > li:last-child { border-bottom: none; }
