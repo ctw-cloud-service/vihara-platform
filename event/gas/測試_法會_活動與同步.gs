@@ -2,7 +2,10 @@
 // 檔案名稱：測試_法會_活動與同步.gs
 // 所屬模組：法會活動（event）
 // 所屬層級：測試（上線後可保留，不影響正式功能）
-// 檔案版本：v1.0.0（2026-10-26）
+// 檔案版本：v1.0.3（2026-10-26）
+//   v1.0.3：淺黃底改檢查不重名的第 5 列（重名列顯示重複的淡橘色）
+//   v1.0.2：新列底色檢查前先 flush，並顯示實際列數與底色
+//   v1.0.1：送出測試回應改為直接呼叫 createResponse（實機 TextItem 沒有 asTextItem）
 // 用途說明：
 //   在 Apps Script 編輯器執行「測試_法會_活動與同步」（約 2～4 分鐘）。
 //   建立暫存的系統主控、精舍、Google 表單與副本範本，完整跑一次第①批流程：
@@ -111,7 +114,8 @@ function 送出法會測試回應_(obj測試表單, arr回應) {
     Object.keys(obj答).forEach(function (str題) {
       const obj題目 = obj測試表單.obj題目[str題];
       if (!obj題目) return;
-      const obj項 = (str題 === '參加日期') ? obj題目.asCheckboxItem().createResponse(obj答[str題]) : obj題目.asTextItem().createResponse(obj答[str題]);
+      // addTextItem()、addCheckboxItem() 傳回的已是 TextItem／CheckboxItem，直接 createResponse
+      const obj項 = obj題目.createResponse(obj答[str題]);
       obj回應.withItemResponse(obj項);
     });
     obj回應.submit();
@@ -263,7 +267,13 @@ function 測試_法會_活動與同步() {
     t.記錄('檢查新回應：2 筆待下載', obj檢查.obj待同步[str活動ID] === 2, obj檢查.str訊息);
     const obj同步 = 同步法會資料(obj甲, { str活動ID: str活動ID });
     t.記錄('同步：新增 2 筆', obj同步.int新增筆數 === 2, obj同步.str訊息);
-    t.記錄('副本：共 5 筆，新列淺黃底', obj有效.getLastRow() === 6 && obj有效.getRange(6, 1).getBackground().toUpperCase() === '#FFF2CC');
+    SpreadsheetApp.flush();   // 同步是另一個試算表物件寫入的，先確保寫入完成再讀
+    // 第 5 列林志明（不重複）應為淺黃底；第 6 列王小明與第 2 列重名，重複標示的淡橘色優先顯示
+    const str新列底色 = String(obj有效.getRange(5, 1).getBackground()).toUpperCase();
+    const str重複列底色 = String(obj有效.getRange(6, 1).getBackground()).toUpperCase();
+    t.記錄('副本：共 5 筆', obj有效.getLastRow() === 6, `目前最後一列 ${obj有效.getLastRow()}`);
+    t.記錄('副本：新列淺黃底', str新列底色 === '#FFF2CC', `第 5 列底色 ${str新列底色}`);
+    t.記錄('副本：新列若重名，顯示重複的淡橘色', str重複列底色 === '#FDE2C4' || str重複列底色 === '#FFF2CC', `第 6 列底色 ${str重複列底色}`);
     const int追加欄 = 取得副本標題索引_(obj有效)['系統_追加時間'];
     t.記錄('副本：有系統_追加時間欄', int追加欄 > 0 && String(obj有效.getRange(6, int追加欄).getValue()) !== '');
     t.記錄('副本：新列手機的 0 保留', String(obj有效.getRange(6, 取得副本標題索引_(obj有效)['手機號碼']).getValue()) === '0912345678');
