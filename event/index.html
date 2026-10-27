@@ -2,16 +2,19 @@
 <!-- ===========================================================================
   檔案名稱：event/index.html（法會活動頁）
   所屬模組：法會活動（event）
-  檔案版本：v1.0.0（2026-10-26）
+  檔案版本：v1.1.0（2026-10-27）
+    v1.1.0：新增「三、大車點名」分頁
   用途說明：
     精舍管理員與承辦人使用的法會活動頁，以索引標籤呈現，分頁內以卡片區分：
       一、活動清單     新增活動（精舍管理員）、每場活動的狀態、同步、承辦人、結束／重新開啟
       二、同步與整理   檢查與同步新報名、修改提醒、重複檢查與移除
-      （三、大車點名　四、法會報到　於第②③批加入）
+      三、大車點名     對外活動：產生點名資料、匯出、轉為正式、退回演練、清除點名資料
+      （四、法會報到 於第③批加入）
     網址：…/vihara-platform/event/?site=精舍代號（入口頁「法會活動」會自動帶上）
   後端動作：event.列出活動／列出承辦人選項／新增活動／設定承辦人／設為結束／重新開啟
             event.同步資料／檢查新回應／列出提醒／處理提醒
             event.設定重複標示／查詢重複／移除重複
+            event.產生點名／領隊代號表／匯出點名／轉為正式／退回演練／清除點名資料
   相依檔案：../core/shared/config.js、api.js、auth.js、ui.js、base.css、event.js
 =========================================================================== -->
 <html lang="zh-Hant-TW">
@@ -41,7 +44,7 @@
 
     /* ── 索引標籤 ── */
     .分頁列 {
-      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
       margin: 1.25rem 0 0; border-bottom: 1px solid var(--色-線);
     }
     .分頁 {
@@ -184,6 +187,8 @@
               <span class="分頁序號">一</span><span class="分頁名稱">活動清單</span></button>
             <button type="button" class="分頁" role="tab" id="分頁_同步與整理" data-區塊="同步與整理" aria-controls="面板_同步與整理" aria-selected="false" tabindex="-1">
               <span class="分頁序號">二</span><span class="分頁名稱">同步與整理<span class="數字標" id="提醒數標" hidden></span></span></button>
+            <button type="button" class="分頁" role="tab" id="分頁_大車點名" data-區塊="大車點名" aria-controls="面板_大車點名" aria-selected="false" tabindex="-1">
+              <span class="分頁序號">三</span><span class="分頁名稱">大車點名</span></button>
           </nav>
 
           <section class="分頁面板" role="tabpanel" id="面板_活動清單" data-區塊="活動清單" aria-labelledby="分頁_活動清單" hidden>
@@ -194,6 +199,10 @@
             <p class="分頁摘要" id="摘要_同步與整理">下載新報名、處理修改提醒、檢查重複</p>
             <div id="內容_同步與整理"></div>
           </section>
+          <section class="分頁面板" role="tabpanel" id="面板_大車點名" data-區塊="大車點名" aria-labelledby="分頁_大車點名" hidden>
+            <p class="分頁摘要" id="摘要_大車點名">對外活動的大車點名名單</p>
+            <div id="內容_大車點名"></div>
+          </section>
         </div>
       </div>
 
@@ -202,7 +211,7 @@
     </section>
   </main>
 
-  <!-- 確認對話框（結束活動、移除重複等不易復原的動作） -->
+  <!-- 確認對話框（結束活動、移除重複、匯出、清除點名資料等不易復原的動作） -->
   <dialog id="確認框" aria-labelledby="確認標題">
     <form method="dialog">
       <h2 id="確認標題">請確認</h2>
