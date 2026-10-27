@@ -1,7 +1,8 @@
 // ============================================================================
 // 檔案名稱：core/admin/admin.js
 // 所屬層級：前端／總管理頁
-// 檔案版本：v1.1.0（2026-10-25）
+// 檔案版本：v1.2.0（2026-10-27）
+//   v1.2.0：每個精舍改為一張卡片；卡片內的精舍管理員改用共用的項目清單（項目列／狀態標）
 //   v1.1.0：通用小工具（取得元素、跳脫HTML、切換狀態、顯示訊息、取得錯誤訊息、
 //           執行操作、檢查電子郵件格式、標記欄位、清除欄位錯誤）搬到 shared/ui.js，
 //           與精舍設定頁共用；「顯示列錯誤」改用共用的「顯示區塊訊息」。畫面與行為不變。
@@ -314,9 +315,10 @@ function 設定代號欄寬(el清單, arr精舍) {
 /**
  * ============================================================================
  * 函式名稱：產生精舍列HTML
- * 版本：v1.0.0（2026-10-25）
+ * 版本：v1.1.0（2026-10-27）
+ *   v1.1.0：改為卡片（li.卡片 > details.項目），管理員清單改用共用的 項目清單／項目列／狀態標
  * ----------------------------------------------------------------------------
- * 用途：產生一個精舍的清單列，含展開後的管理內容：
+ * 用途：產生一個精舍的卡片，含點開後的管理內容：
  *         · 精舍名稱修改、停用／重新啟用精舍
  *         · 精舍管理員清單（停用／重新啟用）
  *         · 新增精舍管理員
@@ -340,7 +342,7 @@ function 產生精舍列HTML(obj精舍) {
     return (a.str狀態 === '啟用' ? 0 : 1) - (b.str狀態 === '啟用' ? 0 : 1);
   });
   const str管理員清單 = arr管理員.length === 0
-    ? '<li class="空白提示">尚未登記管理員。</li>'
+    ? '<li class="小字" style="padding:0.6rem 0">尚未登記管理員。</li>'
     : arr管理員.map(function (obj) {
       const bool管理員啟用 = obj.str狀態 === '啟用';
       let str按鈕 = '';
@@ -353,10 +355,13 @@ function 產生精舍列HTML(obj精舍) {
       } else {
         str按鈕 = '<span class="小字">唯一的管理員，需先新增他人才能停用</span>';
       }
-      return `<li class="${bool管理員啟用 ? '' : '停用'}">
-          <span><span class="姓名">${跳脫HTML(obj.str姓名)}</span>${bool管理員啟用 ? '' : '<span class="小字">（已停用）</span>'}<br>
-                <span class="帳號">${跳脫HTML(obj.str帳號)}</span></span>
-          ${str按鈕}
+      // 一位管理員一列：姓名（停用時加狀態標）、帳號、右側操作
+      return `<li class="${bool管理員啟用 ? '' : '已停用'}">
+          <div class="項目列">
+            <span><span class="項目名稱">${跳脫HTML(obj.str姓名)}</span>${bool管理員啟用 ? '' : '<span class="狀態標 停用">已停用</span>'}</span>
+            <span class="項目附註">${跳脫HTML(obj.str帳號)}</span>
+            <span class="項目操作">${str按鈕}</span>
+          </div>
         </li>`;
     }).join('');
 
@@ -366,17 +371,18 @@ function 產生精舍列HTML(obj精舍) {
     ? `<p class="訊息${obj訊息.bool一般 ? ' 一般' : ''}" role="${obj訊息.bool一般 ? 'status' : 'alert'}">${跳脫HTML(obj訊息.str訊息)}</p>`
     : '';
 
-  return `<li class="${bool啟用 ? '' : '已停用'}">
-    <details data-代號="${str代號}"${bool展開 ? ' open' : ''}>
-      <summary>
+  // 一個精舍一張卡片：標題列（代號｜名稱＋附註｜狀態），點開就地管理
+  return `<li class="卡片${bool啟用 ? '' : ' 已停用'}">
+    <details class="項目" data-代號="${str代號}"${bool展開 ? ' open' : ''}>
+      <summary class="精舍摘要">
         <span class="精舍代號">${str代號}</span>
-        <span class="精舍名稱">${跳脫HTML(obj精舍.str精舍名稱)}</span>
-        <span class="狀態字">${bool啟用 ? '' : '已停用'}</span>
-        <span class="精舍附註">${跳脫HTML(str附註)}　開通於 ${跳脫HTML(obj精舍.str開通日期 || '—')}</span>
+        <span class="項目名稱">${跳脫HTML(obj精舍.str精舍名稱)}</span>
+        <span class="精舍狀態">${bool啟用 ? '' : '<span class="狀態標 停用">已停用</span>'}</span>
+        <span class="項目附註">${跳脫HTML(str附註)}　<span class="不換行">開通於 ${跳脫HTML(obj精舍.str開通日期 || '—')}</span></span>
       </summary>
-      <div class="管理內容">
+      <div class="項目內容 管理內容">
         ${str訊息}
-        <h3>精舍資料</h3>
+        <h4>精舍資料</h4>
         <form class="列表單" data-表單="改名" data-代號="${str代號}" novalidate>
           <label class="欄位">精舍名稱
             <input class="輸入" name="str精舍名稱" maxlength="40" value="${跳脫HTML(obj精舍.str精舍名稱)}" required>
@@ -386,10 +392,10 @@ function 產生精舍列HTML(obj精舍) {
                   data-代號="${str代號}">${bool啟用 ? '停用此精舍' : '重新啟用此精舍'}</button>
         </form>
 
-        <h3>精舍管理員</h3>
-        <ul class="管理員清單">${str管理員清單}</ul>
+        <h4>精舍管理員</h4>
+        <ul class="項目清單">${str管理員清單}</ul>
 
-        <h3>新增精舍管理員</h3>
+        <h4>新增精舍管理員</h4>
         <form class="列表單" data-表單="新增管理員" data-代號="${str代號}" novalidate>
           <label class="欄位">Google 帳號
             <input class="輸入" name="str帳號" type="email" maxlength="120" autocomplete="off" placeholder="name@gmail.com" required>

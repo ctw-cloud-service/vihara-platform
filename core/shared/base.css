@@ -1,7 +1,8 @@
 /* ============================================================================
    檔案名稱：core/shared/base.css
    所屬層級：前端／共用樣式
-   檔案版本：v1.1.0（2026-10-25）
+   檔案版本：v1.2.0（2026-10-27）
+     v1.2.0：由精舍設定頁移入卡片、項目清單、狀態標、可展開項目樣式，總管理頁與精舍設定頁共用
      v1.1.0：由總管理頁移入按鈕變化（主要／警示／小）、輸入欄、欄位、列表單、對話框樣式，
              供總管理頁與精舍設定頁共用
      v1.0.0：初版
@@ -163,6 +164,52 @@ dialog h2 { margin: 0 0 0.25rem; font-size: 1.35rem; }
 }
 .載入中 { color: var(--色-淡字); }
 
+/* ── 卡片：頁面內每個功能項目各自一張（總管理頁、精舍設定頁共用） ── */
+.卡片清單 { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.85rem; }
+.卡片 {
+  background: var(--色-面); border: 1px solid var(--色-線); border-radius: 8px;
+  padding: 1rem 1.25rem; box-shadow: 0 1px 2px rgba(30, 42, 40, 0.04);
+}
+section.卡片 { margin: 0 0 0.85rem; }
+/* 卡片內第一個標題貼齊卡片上緣。前面加上元素名稱（section／li／div）提高優先順序，
+   避免被頁面自己的「.區塊內容 h3:first-child」等同級規則蓋過（頁面樣式在本檔之後載入） */
+section.卡片 > h3:first-child, li.卡片 > h3:first-child, div.卡片 > h3:first-child,
+section.卡片 > .訊息 + h3, li.卡片 > .訊息 + h3, div.卡片 > .訊息 + h3 { margin-top: 0; }
+.卡片 > .區塊提示:last-child { margin-bottom: 0; }
+.卡片.已停用 { background: var(--色-底); }
+.卡片 > .項目列, .卡片 > details > summary.項目列 { padding: 0; }
+.卡片 > details[open] > summary.項目列 { padding-bottom: 0.75rem; border-bottom: 1px solid var(--色-線); margin-bottom: 0.75rem; }
+.卡片 > details > .項目內容 { padding-bottom: 0.25rem; }
+.卡片 .訊息 { margin-top: 0; }
+
+/* ── 卡片內的項目清單（精舍管理員、承辦人…）：一列一筆，右側放操作按鈕 ── */
+.項目清單 { list-style: none; margin: 0; padding: 0; }
+.項目清單 > li { border-bottom: 1px dashed var(--色-線); }
+.項目清單 > li:last-child { border-bottom: none; }
+.項目列 {
+  display: grid; grid-template-columns: 1fr auto; gap: 0.1rem 1rem; align-items: center;
+  padding: 0.75rem 0;
+}
+.項目名稱 { font-weight: 700; }
+.項目附註 { grid-column: 1; color: var(--色-淡字); font-size: 0.875rem; word-break: break-all; }
+.項目操作 { grid-row: 1 / span 2; grid-column: 2; display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
+.狀態標 {
+  display: inline-block; margin-left: 0.5rem; padding: 0 0.5rem;
+  font-size: 0.8125rem; font-weight: 500; border-radius: 999px;
+  border: 1px solid var(--色-線); color: var(--色-淡字); vertical-align: 0.1em;
+}
+.狀態標.啟用 { border-color: var(--色-主); color: var(--色-主); }
+.狀態標.停用 { border-color: var(--色-警示); color: var(--色-警示); }
+li.已停用 .項目名稱 { color: var(--色-淡字); }
+
+/* ── 可展開的項目（<details class="項目">：點標題列展開，就地編輯） ── */
+.項目 > summary { list-style: none; cursor: pointer; }
+.項目 > summary::-webkit-details-marker { display: none; }
+.項目 > summary:hover .項目名稱, .項目[open] > summary .項目名稱 { color: var(--色-主); }
+.項目內容 { padding: 0.25rem 0 1.25rem; }
+.項目內容 h4 { font-size: 0.9375rem; margin: 1rem 0 0.4rem; }
+.項目內容 h4:first-child, .項目內容 > .訊息 + h4 { margin-top: 0; }
+
 /* ── 手機：匾額改橫書置頂 ── */
 @media (max-width: 640px) {
   .版面 {
@@ -171,6 +218,8 @@ dialog h2 { margin: 0 0 0.25rem; font-size: 1.35rem; }
     padding-top: 1rem;
   }
   .欄位組 { grid-template-columns: 1fr; }
+  .項目列 { grid-template-columns: 1fr; }
+  .項目操作 { grid-row: auto; grid-column: 1; justify-content: flex-start; margin-top: 0.4rem; }
   .匾額 { position: static; }
   .匾額框 { min-height: 0; padding: 1rem 0.5rem; }
   .匾額 h1 {
