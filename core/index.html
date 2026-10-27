@@ -1,8 +1,9 @@
 <!doctype html>
 <!-- ===========================================================================
   檔案名稱：core/index.html（入口頁）
-  檔案版本：v1.1.1（2026-10-25）
-    v1.1.1：「尚未開通任何功能」依角色顯示（模組由精舍管理員在精舍設定頁自行開通）
+  檔案版本：v1.2.0（2026-10-27）
+    v1.2.0：「可使用的功能」與「管理」改為卡片區分（卡片樣式共用 shared/base.css v1.2.0）
+    v1.1.1（2026-10-25）：「尚未開通任何功能」依角色顯示（模組由精舍管理員在精舍設定頁自行開通）
     v1.1.0：移入 core/ 資料夾；功能連結改用「取得頁面網址」
     v1.0.0：初版
   用途說明：
@@ -36,25 +37,25 @@
     .身分列 p { margin: 0; }
     .角色 { color: var(--色-淡字); }
 
-    /* 功能清單：一列一個功能，以分隔線區分，不做一格一格的卡片 */
-    .功能清單 { list-style: none; margin: 0; padding: 0; }
-    .功能清單 li { border-bottom: 1px solid var(--色-線); }
+    /* 功能清單：每個功能一張卡片（.卡片清單、.卡片 在 base.css），整張卡片都可點 */
     .功能 {
       display: grid;
       grid-template-columns: 1fr auto;
       gap: 0.15rem 1rem;
-      padding: 1.1rem 0;
       color: inherit;
       text-decoration: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
-    a.功能:hover .功能名稱 { color: var(--色-主); text-decoration: underline; text-underline-offset: 0.25em; }
+    a.功能:hover, a.功能:focus-visible { border-color: var(--色-主); box-shadow: 0 2px 6px rgba(30, 42, 40, 0.08); }
+    a.功能:hover .功能名稱 { color: var(--色-主); }
+    .功能箭頭 { grid-row: 1 / span 2; grid-column: 2; align-self: center; color: var(--色-主); font-size: 1.25rem; line-height: 1; }
     .功能名稱 { font-size: 1.125rem; font-weight: 700; }
     .功能說明 { grid-column: 1; color: var(--色-淡字); font-size: 0.9375rem; }
     .功能狀態 { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-size: 0.875rem; color: var(--色-淡字); }
-    .功能.未上線 { cursor: default; }
+    .功能.未上線 { cursor: default; background: var(--色-底); }
     .功能.未上線 .功能名稱 { color: var(--色-淡字); }
-    .清單標題 { margin: 2rem 0 0.25rem; font-size: 0.9375rem; font-weight: 500; color: var(--色-淡字); }
-    .空白提示 { padding: 1.1rem 0; color: var(--色-淡字); }
+    .清單標題 { margin: 2rem 0 0.75rem; font-size: 0.9375rem; font-weight: 500; color: var(--色-淡字); }
+    .空白提示 { padding: 1rem 1.25rem; color: var(--色-淡字); border: 1px dashed var(--色-線); border-radius: 8px; }
 
     /* Google 按鈕預留高度，載入時版面不跳動 */
     #google按鈕 { min-height: 44px; }
@@ -86,9 +87,9 @@
           <button type="button" class="按鈕" id="登出按鈕">登出</button>
         </div>
         <p class="清單標題" id="功能標題">可使用的功能</p>
-        <ul class="功能清單" id="功能清單"></ul>
+        <ul class="功能清單 卡片清單" id="功能清單"></ul>
         <p class="清單標題" id="管理標題" hidden>管理</p>
-        <ul class="功能清單" id="管理清單" hidden></ul>
+        <ul class="功能清單 卡片清單" id="管理清單" hidden></ul>
       </div>
 
       <!-- 錯誤訊息（任何狀態都可能出現） -->
@@ -144,8 +145,9 @@
 
 
     /**
-     * 函式名稱：建立功能列  版本：v1.0.0（2026-10-25）
-     * 用途：產生功能清單中的一列。已上線是連結；建置中只顯示文字。
+     * 函式名稱：建立功能列  版本：v1.1.0（2026-10-27）
+     *   v1.1.0：改為卡片；整張卡片是連結，右側顯示「›」
+     * 用途：產生功能清單中的一張卡片。已上線是連結；建置中只顯示文字。
      * 參數：
      *   str名稱 {string} 功能名稱
      *   obj頁面 {Object} { str路徑, str說明, bool已上線 }，沒有對應頁面時為 undefined
@@ -156,7 +158,7 @@
       const el列 = document.createElement('li');
       const bool已上線 = Boolean(obj頁面 && obj頁面.bool已上線);
       const el功能 = document.createElement(bool已上線 ? 'a' : 'div');
-      el功能.className = '功能' + (bool已上線 ? '' : ' 未上線');
+      el功能.className = '卡片 功能' + (bool已上線 ? '' : ' 未上線');
       if (bool已上線) {
         el功能.href = 取得頁面網址(obj頁面.str路徑, str精舍代號);
       }
@@ -169,9 +171,11 @@
       el說明.className = '功能說明';
       el說明.textContent = (obj頁面 && obj頁面.str說明) || '';
 
+      // 右側：已上線顯示「›」提示可點；建置中顯示文字
       const el狀態 = document.createElement('span');
-      el狀態.className = '功能狀態';
-      el狀態.textContent = bool已上線 ? '' : '建置中';
+      el狀態.className = bool已上線 ? '功能箭頭' : '功能狀態';
+      el狀態.textContent = bool已上線 ? '›' : '建置中';
+      if (bool已上線) el狀態.setAttribute('aria-hidden', 'true');
 
       el功能.append(el名稱, el狀態, el說明);
       el列.appendChild(el功能);
