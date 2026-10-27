@@ -1,7 +1,8 @@
 // ============================================================================
 // 檔案名稱：core/shared/config.js
 // 所屬層級：前端／共用設定
-// 檔案版本：v1.4.0（2026-10-26）
+// 檔案版本：v1.5.0（2026-10-27）
+//   v1.5.0：新增 Google 選取器設定（法會活動「選擇回覆試算表」自動共用給系統帳號）
 //   v1.4.0：法會活動（event/）第①批完成，改為已上線
 //   v1.3.0：精舍設定頁（core/site/）完成，改為已上線；新增 str系統帳號（登記外部檔案時提示共享對象）
 //   v1.2.0：總管理頁（core/admin/）完成，改為已上線
@@ -33,6 +34,13 @@ const obj平台設定 = Object.freeze({
 
   // Google 登入用的 OAuth 用戶端 ID
   strOAuth用戶端ID: '902061096910-i5eeploiu9h0jmj3uuddpspr0fo0cop6.apps.googleusercontent.com',
+
+  // Google 選取器（Picker）：讓精舍管理員從雲端硬碟挑檔，並自動以「檢視者」共用給系統帳號
+  //   strGoogle選取器金鑰：Google Cloud 主控台建立的 API 金鑰（限定本網站網址、限定 Google Picker API）
+  //   str雲端專案編號：OAuth 用戶端 ID 開頭那串數字（同一個 Google Cloud 專案）
+  //   金鑰空白時不顯示「選擇回覆試算表」按鈕，改為手動共用
+  strGoogle選取器金鑰: '',
+  str雲端專案編號: '902061096910',
 
   // 平台核心的 GAS 網頁應用程式網址（所有模組預設都送到這裡）
   str預設後端網址: 'https://script.google.com/macros/s/AKfycby_S6Aj7tWu_Yo6_JvfiZMDyrh3M1chlOtrxmYmjj2J4RpRkLGqiJBSgxiE6A6IttJ2dA/exec',

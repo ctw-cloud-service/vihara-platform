@@ -2,7 +2,8 @@
 // 檔案名稱：測試_法會_活動與同步.gs
 // 所屬模組：法會活動（event）
 // 所屬層級：測試（上線後可保留，不影響正式功能）
-// 檔案版本：v1.0.3（2026-10-26）
+// 檔案版本：v2.0.0（2026-10-27）　改測回覆試算表同步（列號登記、修改提醒、排序偵測）
+//   舊版：v1.0.3（2026-10-26）
 //   v1.0.3：淺黃底改檢查不重名的第 5 列（重名列顯示重複的淡橘色）
 //   v1.0.2：新列底色檢查前先 flush，並顯示實際列數與底色
 //   v1.0.1：送出測試回應改為直接呼叫 createResponse（實機 TextItem 沒有 asTextItem）
@@ -190,8 +191,9 @@ function 測試_法會_活動與同步() {
     t.記錄('新增活動成功、活動ID 為 A0001', obj新增.bool成功 && str活動ID === 'A0001', obj新增.str訊息);
     const obj活動值 = 取得法會活動_(obj主控台, str活動ID).obj值;
     obj環境.arr暫存檔.push(obj活動值['副本ID']);
-    t.記錄('活動清單：狀態收件中、報到範圍不限、記錄表單', obj活動值['活動狀態'] === '收件中'
-      && obj活動值['報到範圍'] === '不限' && String(obj活動值['表單ID']) === obj表單一.obj表單.getId());
+    const obj回覆分頁 = 找出回覆分頁_(obj表單一.obj回覆表, '');
+    t.記錄('活動清單：狀態收件中、報到範圍不限、記錄回覆分頁', obj活動值['活動狀態'] === '收件中'
+      && obj活動值['報到範圍'] === '不限' && String(obj活動值['來源分頁']) === obj回覆分頁.getName(), String(obj活動值['來源分頁']));
     const obj副本 = SpreadsheetApp.openById(obj活動值['副本ID']);
     const obj有效 = obj副本.getSheetByName('有效資料');
     t.記錄('副本：有效資料貼入 3 筆', obj有效.getLastRow() === 4, `目前 ${obj有效.getLastRow() - 1} 筆`);
@@ -199,7 +201,8 @@ function 測試_法會_活動與同步() {
     t.記錄('副本：手機開頭的 0 保留', String(obj有效.getRange(2, int手機欄).getValue()) === '0912345678',
       String(obj有效.getRange(2, int手機欄).getValue()));
     t.記錄('副本：有重複檢查分頁', obj副本.getSheetByName('重複檢查') !== null);
-    t.記錄('已同步紀錄：登記 3 筆', Object.keys(讀取法會已同步紀錄_(obj主控台)[str活動ID] || {}).length === 3);
+    const obj紀錄 = 讀取法會已同步紀錄_(obj主控台)[str活動ID] || {};
+    t.記錄('已同步紀錄：以列號登記 3 筆', Object.keys(obj紀錄).sort().join(',') === '列2,列3,列4', Object.keys(obj紀錄).join(','));
     const arr編輯者 = DriveApp.getFileById(obj活動值['副本ID']).getEditors().map(function (o) { return o.getEmail().toLowerCase(); });
     t.記錄('副本共享給住持與承辦甲，不含承辦乙', arr編輯者.indexOf(obj環境.str住持帳號) !== -1
       && arr編輯者.indexOf(obj環境.str承辦甲) !== -1 && arr編輯者.indexOf(obj環境.str承辦乙) === -1, arr編輯者.join('、'));
@@ -224,7 +227,7 @@ function 測試_法會_活動與同步() {
     });
     const obj沒連表單 = SpreadsheetApp.create('法會測試_沒有表單');
     obj環境.arr暫存檔.push(obj沒連表單.getId());
-    t.預期錯誤('沒有連結表單的試算表', obj錯誤代碼.參數錯誤, function () {
+    t.預期錯誤('沒有表單回應分頁的試算表', obj錯誤代碼.工作表不存在, function () {
       新增法會活動(obj住持, { str活動名稱: '另一場', str活動類型: '對外', str來源網址: obj沒連表單.getUrl() });
     });
     const str原範本 = str測試用法會範本ID_;
@@ -300,6 +303,31 @@ function 測試_法會_活動與同步() {
     t.預期錯誤('提醒狀態只能已處理或忽略', obj錯誤代碼.參數錯誤, function () {
       處理法會提醒(obj甲, { str提醒ID: obj提醒.arr提醒[0].str提醒ID, str處理狀態: '刪除' });
     });
+
+    // 填寫人修改報名：回覆試算表同一列的時間戳記變新（以改時間模擬 Google 表單的行為）
+    const int來源時間欄 = 取得副本標題索引_(obj回覆分頁)['時間戳記'];
+    obj回覆分頁.getRange(2, int來源時間欄).setValue(new Date(new Date().getTime() + 60000));
+    SpreadsheetApp.flush();
+    const obj改 = 同步法會資料(obj甲, { str活動ID: str活動ID });
+    const arr改提醒 = 列出法會提醒(obj甲, {}).arr提醒;
+    t.記錄('填寫人修改：不新增、提醒 1 則「回應已修改」', obj改.int新增筆數 === 0 && obj改.int提醒筆數 === 1
+      && arr改提醒[0].str類型 === '回應已修改' && arr改提醒[0].str說明.indexOf('王小明') === 0, arr改提醒.length ? arr改提醒[0].str說明 : obj改.str訊息);
+    t.記錄('同一次修改只提醒一次', 同步法會資料(obj甲, { str活動ID: str活動ID }).int提醒筆數 === 0);
+    處理法會提醒(obj甲, { str提醒ID: arr改提醒[0].str提醒ID, str處理狀態: '已處理' });
+
+    // 回覆試算表被排序（第 3、4 列對調）→ 停止同步並說明
+    const int來源欄數 = obj回覆分頁.getLastColumn();
+    const arr第3列 = obj回覆分頁.getRange(3, 1, 1, int來源欄數).getValues();
+    const arr第4列 = obj回覆分頁.getRange(4, 1, 1, int來源欄數).getValues();
+    obj回覆分頁.getRange(3, 1, 1, int來源欄數).setValues(arr第4列);
+    obj回覆分頁.getRange(4, 1, 1, int來源欄數).setValues(arr第3列);
+    SpreadsheetApp.flush();
+    t.預期錯誤('回覆試算表被排序：停止同步並說明', obj錯誤代碼.參數錯誤, function () { 同步法會資料(obj甲, { str活動ID: str活動ID }); });
+    t.記錄('檢查新報名也列出原因', 檢查法會新回應(obj甲, {}).arr明細.some(function (s) { return s.indexOf('✘') === 0 && s.indexOf('排序') !== -1; }));
+    obj回覆分頁.getRange(3, 1, 1, int來源欄數).setValues(arr第3列);
+    obj回覆分頁.getRange(4, 1, 1, int來源欄數).setValues(arr第4列);
+    SpreadsheetApp.flush();
+    t.記錄('還原後恢復正常、沒有多加資料', 同步法會資料(obj甲, { str活動ID: str活動ID }).int新增筆數 === 0 && obj有效.getLastRow() === 7);
 
     // ── 五、活動作業鎖 ──
     const str鎖鍵 = `${str法會作業鎖前綴}TC_${str活動ID}`;

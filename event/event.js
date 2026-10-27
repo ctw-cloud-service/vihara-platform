@@ -2,7 +2,8 @@
 // 檔案名稱：event/event.js
 // 所屬模組：法會活動（event）
 // 所屬層級：前端／法會活動頁
-// 檔案版本：v1.1.0（2026-10-27）
+// 檔案版本：v1.2.0（2026-10-27）
+//   v1.2.0：新增活動改為只讀回覆試算表：「選擇回覆試算表」以 Google 選取器挑檔，並自動以「檢視者」共用給系統帳號
 //   v1.1.0：新增「三、大車點名」分頁（產生點名資料、領隊代號、匯出、轉為正式、退回演練、清除）
 //   v1.0.0：初版
 // 用途說明：
@@ -11,6 +12,7 @@
 //     B. 登入流程     — 用共用 auth.js 登入；精舍管理員與承辦人可進入
 //     C. 分頁共用     — 切換分頁、首次顯示才載入、卡片內操作後重畫並顯示訊息
 //     D. 活動清單     — 新增活動、活動卡片（同步、承辦人、結束／重新開啟）
+//     D2. 選擇回覆試算表 — Google 選取器挑檔，並以「檢視者」共用給系統帳號
 //     E. 同步與整理   — 檢查與同步新報名、修改提醒、重複檢查與移除
 //     E2. 大車點名    — 對外活動：產生點名資料、匯出、轉為正式、退回演練、清除
 //     F. 確認對話框   — 不易復原的動作先確認
@@ -59,6 +61,7 @@ const obj頁面狀態 = {
   obj重複結果: null,          // event.查詢重複 的結果
 
   str展開: '',                // 目前展開的編輯區：'新增' 或 '承辦人_A0001'
+  obj已選來源: null,          // 新增活動用 Google 選取器選到的回覆試算表 { str名稱, str網址 }
 
   bool顯示已結束點名: false     // 大車點名分頁：是否列出已結束的活動（清除點名資料用）
 };
@@ -564,12 +567,10 @@ function 產生新增活動HTML() {
             <label class="欄位">活動日期（選填）<input class="輸入" type="date" name="活動日期"></label>
             <label class="欄位">備註（選填）<input class="輸入" name="備註" maxlength="200"></label>
             <label class="欄位 寬">報名表單的回覆試算表網址
-              <input class="輸入" name="來源網址" placeholder="https://docs.google.com/spreadsheets/d/…" required></label>
+              <input class="輸入" name="來源網址" placeholder="https://docs.google.com/spreadsheets/d/…" required
+                value="${跳脫HTML(obj頁面狀態.obj已選來源 ? obj頁面狀態.obj已選來源.str網址 : '')}"></label>
           </div>
-          <p class="小字" style="margin:0.5rem 0 0.75rem">開啟 Google 表單 →「回覆」頁籤 → 綠色試算表圖示，複製網址列。
-            並請在表單右上角「⋮ → 新增協作者」，把 <span class="程式碼">${跳脫HTML(str系統帳號)}</span>
-            加為<strong>編輯者</strong>（系統才能讀到新報名）。
-            <button type="button" class="按鈕 小" data-動作="複製系統帳號">複製系統帳號</button></p>
+          ${產生選擇來源HTML()}
           <div id="新增承辦人區">${產生承辦人勾選HTML([])}</div>
           <div class="表單按鈕">
             <button type="submit" class="按鈕 主要">建立活動</button>
@@ -727,7 +728,7 @@ function 處理新增活動(el表單) {
   };
   完成卡片操作(el表單.querySelector('button[type="submit"]'), 'event.新增活動', obj參數, ['活動清單', '同步與整理'],
     function () { return 取得元素('卡片_新增活動'); },
-    function () { obj頁面狀態.str展開 = ''; });
+    function () { obj頁面狀態.str展開 = ''; obj頁面狀態.obj已選來源 = null; });
 }
 
 
@@ -827,6 +828,246 @@ async function 複製系統帳號(el按鈕) {
     window.prompt('請複製下面的系統帳號：', obj平台設定.str系統帳號);
   }
   setTimeout(function () { if (el按鈕.isConnected) el按鈕.textContent = str原文字; }, 1500);
+}
+
+
+// ============================================================================
+// D2. 選擇回覆試算表（Google 選取器＋自動共用給系統帳號）
+// ============================================================================
+//   系統帳號只需要「檢視者」權限讀回覆試算表，不碰 Google 表單。
+//   精舍管理員按「選擇回覆試算表」：
+//     ① 以 Google 帳號授權「只限這次選取的檔案」（drive.file，系統看不到雲端硬碟其他檔案）
+//     ② Google 選取器中挑回覆試算表
+//     ③ 以管理員本人的身分把這份試算表以「檢視者」共用給系統帳號（不寄通知信）
+//     ④ 網址自動填入表單
+//   需要在 config.js 設定 strGoogle選取器金鑰（未設定時只顯示手動共用的說明）。
+
+// Google 選取器載入狀態（只載入一次）
+let obj選取器載入中_ = null;
+
+
+/**
+ * ============================================================================
+ * 函式名稱：建立畫面錯誤
+ * 版本：v1.2.0（2026-10-27）
+ * ----------------------------------------------------------------------------
+ * 用途：前端自己產生的錯誤也帶 str訊息，共用的「取得錯誤訊息」才會顯示白話內容。
+ * 參數：str訊息 {string}
+ * 傳回：{Error}
+ * ============================================================================
+ */
+function 建立畫面錯誤(str訊息) {
+  const err = new Error(str訊息);
+  err.str訊息 = str訊息;
+  return err;
+}
+
+
+/**
+ * ============================================================================
+ * 函式名稱：可用選取器
+ * 版本：v1.2.0（2026-10-27）
+ * ----------------------------------------------------------------------------
+ * 用途：config.js 有設定選取器金鑰與雲端專案編號時才顯示「選擇回覆試算表」。
+ * 參數：無
+ * 傳回：{boolean}
+ * ============================================================================
+ */
+function 可用選取器() {
+  return !!(obj平台設定.strGoogle選取器金鑰 && obj平台設定.str雲端專案編號);
+}
+
+
+/**
+ * ============================================================================
+ * 函式名稱：產生選擇來源HTML
+ * 版本：v1.2.0（2026-10-27）
+ * ----------------------------------------------------------------------------
+ * 用途：新增活動表單中「選擇回覆試算表」按鈕、已選檔案，以及手動共用的說明。
+ * 參數：無
+ * 傳回：{string} HTML
+ * ============================================================================
+ */
+function 產生選擇來源HTML() {
+  const str系統帳號 = obj平台設定.str系統帳號;
+  const obj已選 = obj頁面狀態.obj已選來源;
+  const str按鈕 = 可用選取器()
+    ? `<div class="工具列" style="margin:0.5rem 0 0.25rem">
+        <button type="button" class="按鈕" data-動作="選擇回覆試算表">📄 選擇回覆試算表</button>
+        <span class="小字" data-已選來源>${obj已選 ? `已選「${跳脫HTML(obj已選.str名稱)}」，並已共用給系統（檢視者）` : '從雲端硬碟挑選，系統會自動取得讀取權限'}</span>
+      </div>`
+    : '';
+  return `${str按鈕}
+    <p class="小字" style="margin:0.25rem 0 0.75rem">${可用選取器() ? '也可以直接貼網址：' : ''}開啟 Google 表單 →「回覆」頁籤 →「在試算表中查看」，複製網址列；
+      並在回覆試算表右上角「共用」，把 <span class="程式碼">${跳脫HTML(str系統帳號)}</span> 加為<strong>檢視者</strong>。
+      <button type="button" class="按鈕 小" data-動作="複製系統帳號">複製系統帳號</button>
+      <br>表單本身<strong>不需要</strong>共用給系統。</p>`;
+}
+
+
+/**
+ * ============================================================================
+ * 函式名稱：載入Google選取器
+ * 版本：v1.2.0（2026-10-27）
+ * ----------------------------------------------------------------------------
+ * 用途：第一次使用時載入 https://apis.google.com/js/api.js 與 picker 模組。
+ * 參數：無
+ * 傳回：{Promise<void>}
+ * ============================================================================
+ */
+function 載入Google選取器() {
+  if (obj選取器載入中_) return obj選取器載入中_;
+  obj選取器載入中_ = new Promise(function (fn完成, fn失敗) {
+    const fn載入模組 = function () {
+      window.gapi.load('picker', { callback: fn完成, onerror: function () { fn失敗(建立畫面錯誤('Google 選取器載入失敗')); } });
+    };
+    if (window.gapi && window.gapi.load) { fn載入模組(); return; }
+    const el = document.createElement('script');
+    el.src = 'https://apis.google.com/js/api.js';
+    el.async = true;
+    el.onload = fn載入模組;
+    el.onerror = function () { fn失敗(建立畫面錯誤('無法載入 Google 選取器，請檢查網路後再試。')); };
+    document.head.appendChild(el);
+  }).catch(function (err) { obj選取器載入中_ = null; throw err; });
+  return obj選取器載入中_;
+}
+
+
+/**
+ * ============================================================================
+ * 函式名稱：取得雲端硬碟權杖
+ * 版本：v1.2.0（2026-10-27）
+ * ----------------------------------------------------------------------------
+ * 用途：向 Google 取得「只限選取的檔案」（drive.file）的存取權杖，由使用者本人同意。
+ *       權杖只存在這個頁面的記憶體中，不送到平台後端。
+ * 參數：無
+ * 傳回：{Promise<string>} 存取權杖
+ * ============================================================================
+ */
+function 取得雲端硬碟權杖() {
+  return new Promise(function (fn完成, fn失敗) {
+    if (!(window.google && google.accounts && google.accounts.oauth2)) {
+      fn失敗(建立畫面錯誤('Google 登入元件尚未載入完成，請稍候幾秒再按一次。'));
+      return;
+    }
+    const obj用戶端 = google.accounts.oauth2.initTokenClient({
+      client_id: obj平台設定.strOAuth用戶端ID,
+      scope: 'https://www.googleapis.com/auth/drive.file',
+      hint: (obj頁面狀態.obj身分 && obj頁面狀態.obj身分.str帳號) || '',
+      callback: function (obj回應) {
+        if (obj回應 && obj回應.access_token) fn完成(obj回應.access_token);
+        else fn失敗(建立畫面錯誤('沒有取得 Google 雲端硬碟的授權，請再按一次並按「允許」。'));
+      },
+      error_callback: function (obj錯誤) {
+        fn失敗(建立畫面錯誤(obj錯誤 && obj錯誤.type === 'popup_closed'
+          ? '授權視窗已關閉，沒有選擇檔案。' : '無法開啟 Google 授權視窗，請允許本網站開啟彈出式視窗後再試。'));
+      }
+    });
+    obj用戶端.requestAccessToken({ prompt: '' });
+  });
+}
+
+
+/**
+ * ============================================================================
+ * 函式名稱：開啟選取器
+ * 版本：v1.2.0（2026-10-27）
+ * ----------------------------------------------------------------------------
+ * 用途：顯示 Google 選取器（只列試算表），等使用者挑一個或取消。
+ * 參數：str權杖 {string}
+ * 傳回：{Promise<Object|null>} { str代號, str名稱, str網址 }；取消時為 null
+ * ============================================================================
+ */
+function 開啟選取器(str權杖) {
+  return new Promise(function (fn完成) {
+    const obj檢視 = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
+      .setIncludeFolders(true).setMode(google.picker.DocsViewMode.LIST);
+    new google.picker.PickerBuilder()
+      .addView(obj檢視)
+      .setOAuthToken(str權杖)
+      .setDeveloperKey(obj平台設定.strGoogle選取器金鑰)
+      .setAppId(obj平台設定.str雲端專案編號)
+      .setLocale('zh-TW')
+      .setTitle('選擇報名表單的回覆試算表')
+      .setCallback(function (obj資料) {
+        const str動作 = obj資料[google.picker.Response.ACTION];
+        if (str動作 === google.picker.Action.PICKED) {
+          const obj檔 = obj資料[google.picker.Response.DOCUMENTS][0];
+          fn完成({
+            str代號: obj檔[google.picker.Document.ID],
+            str名稱: obj檔[google.picker.Document.NAME],
+            str網址: `https://docs.google.com/spreadsheets/d/${obj檔[google.picker.Document.ID]}/edit`
+          });
+        } else if (str動作 === google.picker.Action.CANCEL) {
+          fn完成(null);
+        }
+      })
+      .build()
+      .setVisible(true);
+  });
+}
+
+
+/**
+ * ============================================================================
+ * 函式名稱：共用給系統帳號
+ * 版本：v1.2.0（2026-10-27）
+ * ----------------------------------------------------------------------------
+ * 用途：以使用者本人的身分，把檔案以「檢視者」共用給系統帳號（不寄通知信）。
+ *       已經共用過時 Google 會直接成功，可重複按。
+ * 參數：
+ *   str權杖   {string}
+ *   str檔案   {string} 檔案代號
+ * 傳回：{Promise<void>}；失敗時丟出白話錯誤
+ * ============================================================================
+ */
+async function 共用給系統帳號(str權杖, str檔案) {
+  let obj回應;
+  try {
+    obj回應 = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(str檔案)}/permissions?sendNotificationEmail=false&supportsAllDrives=true`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${str權杖}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'reader', type: 'user', emailAddress: obj平台設定.str系統帳號 })
+    });
+  } catch (err) {
+    throw 建立畫面錯誤('連線到 Google 雲端硬碟失敗，請確認網路後再試。');
+  }
+  if (obj回應.ok) return;
+  let str原因 = '';
+  try { str原因 = ((await obj回應.json()).error || {}).message || ''; } catch (err) { str原因 = ''; }
+  if (obj回應.status === 403) {
+    throw 建立畫面錯誤(`您沒有這份試算表的共用權限（需要是擁有者或可共用的編輯者）。請請檔案擁有者把 ${obj平台設定.str系統帳號} 加為「檢視者」，再貼上網址。`);
+  }
+  throw 建立畫面錯誤(`無法自動共用給系統帳號（${obj回應.status}${str原因 ? '：' + str原因 : ''}）。請手動在試算表「共用」加入 ${obj平台設定.str系統帳號}（檢視者）。`);
+}
+
+
+/**
+ * ============================================================================
+ * 函式名稱：處理選擇回覆試算表
+ * 版本：v1.2.0（2026-10-27）
+ * ----------------------------------------------------------------------------
+ * 用途：「選擇回覆試算表」按鈕：授權 → 選取 → 共用給系統帳號 → 填入網址（不重畫整張表單，保留已輸入的內容）。
+ * 參數：el按鈕 {HTMLElement}
+ * 傳回：{Promise<void>}
+ * ============================================================================
+ */
+async function 處理選擇回覆試算表(el按鈕) {
+  const el卡片 = 取得元素('卡片_新增活動');
+  顯示區塊訊息(el卡片, '');
+  await 執行操作(el按鈕, async function () {
+    const str權杖 = await 取得雲端硬碟權杖();
+    await 載入Google選取器();
+    const obj檔 = await 開啟選取器(str權杖);
+    if (!obj檔) return;
+    await 共用給系統帳號(str權杖, obj檔.str代號);
+    obj頁面狀態.obj已選來源 = { str名稱: obj檔.str名稱, str網址: obj檔.str網址 };
+    const el表單 = el卡片.querySelector('form[data-表單="新增活動"]');
+    el表單.elements['來源網址'].value = obj檔.str網址;
+    清除欄位錯誤(el表單);
+    const el說明 = el卡片.querySelector('[data-已選來源]');
+    if (el說明) el說明.textContent = `已選「${obj檔.str名稱}」，並已共用給系統（檢視者）`;
+  }, function (str訊息) { 顯示區塊訊息(el卡片, str訊息); });
 }
 
 
@@ -1449,6 +1690,7 @@ function 綁定事件() {
     switch (el按鈕.dataset.動作) {
       case '重新讀取': 顯示分頁時載入(el按鈕.dataset.分頁); break;
       case '複製系統帳號': 複製系統帳號(el按鈕); break;
+      case '選擇回覆試算表': 處理選擇回覆試算表(el按鈕); break;
       case '同步活動': case '看提醒': case '設為結束': case '重新開啟': case '看點名': 處理活動按鈕(el按鈕); break;
       case '產生點名': case '領隊代號表': case '匯出點名': case '轉為正式': case '退回演練': case '清除點名': 處理點名按鈕(el按鈕); break;
       case '檢查新報名': case '同步全部': 處理同步按鈕(el按鈕); break;
