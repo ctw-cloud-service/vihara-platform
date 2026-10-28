@@ -2,7 +2,8 @@
 // 檔案名稱：event/event.js
 // 所屬模組：法會活動（event）
 // 所屬層級：前端／法會活動頁
-// 檔案版本：v1.2.0（2026-10-27）
+// 檔案版本：v1.3.0（2026-10-28）
+//   v1.3.0：活動可設期間（開始日期＋結束日期）
 //   v1.2.0：新增活動改為只讀回覆試算表：「選擇回覆試算表」以 Google 選取器挑檔，並自動以「檢視者」共用給系統帳號
 //   v1.1.0：新增「三、大車點名」分頁（產生點名資料、領隊代號、匯出、轉為正式、退回演練、清除）
 //   v1.0.0：初版
@@ -540,7 +541,7 @@ function 產生承辦人勾選HTML(arr已選) {
 /**
  * ============================================================================
  * 函式名稱：產生新增活動HTML
- * 版本：v1.0.0（2026-10-26）
+ * 版本：v1.3.0（2026-10-28）　v1.3.0：活動期間（開始＋結束日期）
  * ----------------------------------------------------------------------------
  * 用途：「新增活動」卡片（可展開的表單）。
  * 參數：無
@@ -564,8 +565,9 @@ function 產生新增活動HTML() {
               <label class="選項"><input type="radio" name="活動類型" value="對外"><span>對外</span>
                 <span class="小字">要搭大車外出，要匯出大車點名</span></label>
             </fieldset>
-            <label class="欄位">活動日期（選填）<input class="輸入" type="date" name="活動日期"></label>
-            <label class="欄位">備註（選填）<input class="輸入" name="備註" maxlength="200"></label>
+            <label class="欄位">開始日期（選填）<input class="輸入" type="date" name="活動日期"></label>
+            <label class="欄位">結束日期（多日活動才填）<input class="輸入" type="date" name="結束日期"></label>
+            <label class="欄位 寬">備註（選填）<input class="輸入" name="備註" maxlength="200"></label>
             <label class="欄位 寬">報名表單的回覆試算表網址
               <input class="輸入" name="來源網址" placeholder="https://docs.google.com/spreadsheets/d/…" required
                 value="${跳脫HTML(obj頁面狀態.obj已選來源 ? obj頁面狀態.obj已選來源.str網址 : '')}"></label>
@@ -586,7 +588,7 @@ function 產生新增活動HTML() {
 /**
  * ============================================================================
  * 函式名稱：產生活動卡片HTML
- * 版本：v1.0.0（2026-10-26）
+ * 版本：v1.3.0（2026-10-28）　v1.3.0：活動期間（開始＋結束日期）
  * ----------------------------------------------------------------------------
  * 用途：一場活動的卡片：名稱、狀態、資訊、操作按鈕、設定承辦人（精舍管理員）。
  * 參數：obj活動 {Object} event.列出活動 的一筆
@@ -601,7 +603,9 @@ function 產生活動卡片HTML(obj活動) {
 
   // 資訊列
   const arr資訊 = [];
-  if (obj活動.str活動日期) arr資訊.push(`日期 ${obj活動.str活動日期}`);
+  // 日期：單日「2026-11-28」，期間「2026-11-28～12-02」（後端組好；舊版後端沒有 str日期顯示 時退回開始日期）
+  const str日期 = obj活動.str日期顯示 || obj活動.str活動日期;
+  if (str日期) arr資訊.push(`日期 ${str日期}`);
   arr資訊.push(`承辦人：${str承辦人}`);
   arr資訊.push(`已下載 ${obj活動.int已同步筆數} 筆`);
   if (obj活動.str上次同步時間) arr資訊.push(`上次同步 ${obj活動.str上次同步時間}`);
@@ -700,7 +704,7 @@ function 取得勾選帳號(el表單) {
 /**
  * ============================================================================
  * 函式名稱：處理新增活動
- * 版本：v1.0.0（2026-10-26）
+ * 版本：v1.3.0（2026-10-28）　v1.3.0：活動期間（開始＋結束日期）
  * ----------------------------------------------------------------------------
  * 用途：檢查欄位 → 呼叫 event.新增活動 → 收起表單、重畫並在卡片顯示結果。
  * 參數：el表單 {HTMLFormElement}
@@ -713,6 +717,11 @@ function 處理新增活動(el表單) {
   const el名稱 = el表單.elements['活動名稱'];
   const el網址 = el表單.elements['來源網址'];
   if (el名稱.value.trim() === '') return 顯示區塊訊息(el卡片, 標記欄位(el名稱, '請輸入活動名稱。'));
+  // 活動期間：只填結束、或結束早於開始時擋下（yyyy-MM-dd 可直接比字串）
+  const el開始 = el表單.elements['活動日期'];
+  const el結束 = el表單.elements['結束日期'];
+  if (el結束.value && !el開始.value) return 顯示區塊訊息(el卡片, 標記欄位(el開始, '有填結束日期時，請一併填開始日期（單日活動只要填開始日期）。'));
+  if (el結束.value && el結束.value < el開始.value) return 顯示區塊訊息(el卡片, 標記欄位(el結束, '結束日期不能早於開始日期。'));
   if (/[[\]*?/\\:]/.test(el名稱.value)) return 顯示區塊訊息(el卡片, 標記欄位(el名稱, '活動名稱不可含有 [ ] * ? / \\ : 這些符號。'));
   if (!/docs\.google\.com\/spreadsheets\/d\//.test(el網址.value) && !/^[\w-]{20,}$/.test(el網址.value.trim())) {
     return 顯示區塊訊息(el卡片, 標記欄位(el網址, '請貼上回覆試算表的完整網址（https://docs.google.com/spreadsheets/d/… 開頭）。'));
@@ -722,6 +731,7 @@ function 處理新增活動(el表單) {
     str活動名稱: el名稱.value.trim(),
     str活動類型: el表單.elements['活動類型'].value,
     str活動日期: el表單.elements['活動日期'].value,
+    str結束日期: el表單.elements['結束日期'].value,
     str來源網址: el網址.value.trim(),
     arr承辦人: 取得勾選帳號(el表單),
     str備註: el表單.elements['備註'].value.trim()
