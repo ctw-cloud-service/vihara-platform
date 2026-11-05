@@ -2,7 +2,7 @@
 // 檔案名稱：測試_法會_報到名冊.gs
 // 所屬模組：法會活動（event）
 // 所屬層級：測試（上線後可保留，不影響正式功能）
-// 檔案版本：v1.0.0（2026-11-05）
+// 檔案版本：v1.0.0（2026-11-05）　含副本活動類型標記（模擬試算表，不碰檔案）
 // 用途說明：
 //   在 Apps Script 編輯器執行：
 //     · 測試_法會_報到名冊純邏輯（數秒）：時間戳記、報名先後、場次欄判斷、每場次去重、
@@ -179,6 +179,29 @@ function 測試_法會_報到名冊純邏輯() {
   t.預期錯誤('沒有選擇場次時停止（不讀副本）', obj錯誤代碼.參數錯誤, function () { 產生場次名冊_(null, 'TEST', [], dat十月); });
   t.記錄('場次基準日：活動日期', 取得場次基準日_({ '活動日期': dat十月 }) === dat十月);
   t.記錄('場次基準日：沒有活動日期用今天', 是日期值_(取得場次基準日_({ '活動日期': '' })));
+
+  // ── 九、副本活動類型標記（以模擬的試算表測試，不碰檔案） ──
+  const fn模擬副本 = function (arr初始) {
+    const arr標記 = (arr初始 || []).map(function (v) { return { 鍵: obj法會設定.str副本類型鍵, 值: v }; });
+    return {
+      arr標記: arr標記,
+      createDeveloperMetadataFinder: function () {
+        return { withKey: function (k) { return { find: function () {
+          return arr標記.filter(function (o) { return o.鍵 === k; }).map(function (o) {
+            return { getValue: function () { return o.值; }, remove: function () { arr標記.splice(arr標記.indexOf(o), 1); } };
+          });
+        } }; } };
+      },
+      addDeveloperMetadata: function (k, v) { arr標記.push({ 鍵: k, 值: v }); }
+    };
+  };
+  t.記錄('類型標記：鍵名與副本工具相同（法會活動類型）', obj法會設定.str副本類型鍵 === '法會活動類型');
+  const obj副本甲 = fn模擬副本([]);
+  t.記錄('類型標記：沒有標記 → 已補上', 標記副本活動類型_(obj副本甲, '對內') === '已補上' && obj副本甲.arr標記.length === 1 && obj副本甲.arr標記[0].值 === '對內');
+  t.記錄('類型標記：再執行一次 → 已正確、不重複', 標記副本活動類型_(obj副本甲, '對內') === '已正確' && obj副本甲.arr標記.length === 1);
+  const obj副本乙 = fn模擬副本(['對外', '對內']);
+  t.記錄('類型標記：值不同或重複 → 已更正、只留一筆', 標記副本活動類型_(obj副本乙, '對內') === '已更正' && obj副本乙.arr標記.length === 1 && obj副本乙.arr標記[0].值 === '對內');
+  t.預期錯誤('類型標記：不是對內／對外時停止', obj錯誤代碼.參數錯誤, function () { 標記副本活動類型_(fn模擬副本([]), '其他'); });
 
   return t.結算();
 }
