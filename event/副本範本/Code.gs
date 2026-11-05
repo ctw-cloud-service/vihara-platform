@@ -2,7 +2,8 @@
  * ============================================================================
  * 檔案名稱：Code.gs（法會活動副本範本的綁定指令碼「副本工具」）
  * 所屬模組：法會活動（event）
- * 檔案版本：v3.3.1（2026-11-04）
+ * 檔案版本：v3.4.0（2026-11-05）
+ *   v3.4.0：新增「法會報到 → 下載場次名冊」（對內活動：勾選場次，平台產生「參加名冊」）
  *   v3.3.1：只改註解（缺欄改由平台留空白並提醒），已貼 v3.3.0 的副本不必重貼
  *   v3.3.0：「大車點名」改為「產生出車資料」（依欄名從有效資料直接產生），移除「領隊代號對照表」
  *   v3.2.0：移除「報表」選單（列印功能移到「報表產生器 → 列印」）
@@ -26,6 +27,7 @@
  *   下載資料 → 下載新資料
  *   檢查重複 → 查詢重複／跳到下一個重複／標示重複／清除標示／移除重複
  *   大車點名 → 產生出車資料／匯出到大車點名試算表（對外活動）
+ *   法會報到 → 下載場次名冊（對內活動）
  *   報表     → 由「報表.gs」建立
  *   報表產生器 → 由「報表產生器.gs」建立（點選欄位與條件產生報表、報表範本）
  * ============================================================================
@@ -45,8 +47,8 @@ const str有效資料分頁 = '有效資料';
 
 /**
  * 函式名稱：onOpen
- * 版本：v3.3.0（2026-11-04）
- * 用途：開啟試算表時建立選單：下載資料｜檢查重複｜大車點名｜報表產生器（「報表」選單已移除）。
+ * 版本：v3.4.0（2026-11-05）　v3.4.0：加入「法會報到」選單
+ * 用途：開啟試算表時建立選單：下載資料｜檢查重複｜大車點名｜法會報到｜報表產生器（「報表」選單已移除）。
  */
 function onOpen() {
   const obj介面 = SpreadsheetApp.getUi();
@@ -65,6 +67,9 @@ function onOpen() {
   obj介面.createMenu('大車點名')
     .addItem('產生出車資料（依欄名從有效資料產生）', '選單_產生出車資料')
     .addItem('匯出到大車點名試算表', '選單_匯出點名')
+    .addToUi();
+  obj介面.createMenu('法會報到')
+    .addItem('下載場次名冊（勾選場次產生參加名冊）', '選單_下載場次名冊')
     .addToUi();
   // 報表.gs 只做開檔還原列印設定（不再建立「報表」選單）；沒有貼報表.gs 時略過
   if (typeof 建立報表選單 === 'function') 建立報表選單();
@@ -330,4 +335,72 @@ function 選單_匯出點名() {
   處理中('正在匯出到大車點名試算表…');
   const obj結果 = 呼叫系統('副本匯出點名', { bool僅預覽: false });
   提示(obj結果.bool成功 ? '匯出完成' : '匯出失敗', obj結果.str訊息);
+}
+
+
+/* ==================== 法會報到（對內活動） ==================== */
+
+/**
+ * ----------------------------------------------------------------------------
+ * 函式名稱：選單_下載場次名冊
+ * 版本：v3.4.0（2026-11-05）
+ * 用途：
+ *   ① 請平台列出「有效資料」的場次（欄名含日期的欄）與各場次筆數、已下載人數
+ *   ② 顯示勾選視窗；按「下載」後在視窗中呼叫 選單_執行下載場次名冊
+ *   對外活動或沒有權限時，平台會回覆白話說明。
+ * ----------------------------------------------------------------------------
+ */
+function 選單_下載場次名冊() {
+  處理中('正在讀取場次…');
+  const obj結果 = 呼叫系統('副本列出場次');
+  if (!obj結果.bool成功) { 提示('無法列出場次', obj結果.str訊息); return; }
+  const arr場次 = obj結果.arr場次 || [];
+
+  // 視窗內容：每個場次一個勾選框（以序號對應，場次名稱放在 script 變數中，避免特殊符號破壞畫面）
+  let str內容 = '<div style="font-family:sans-serif;font-size:14px">';
+  str內容 += '<p>「' + 安全文字(obj結果.str活動名稱) + '」共 ' + arr場次.length + ' 個場次。請勾選要下載的場次：</p>';
+  str內容 += '<table style="border-collapse:collapse;width:100%">' +
+    '<tr style="background:#f3efe6"><th></th><th style="text-align:left;padding:4px">日期</th><th style="text-align:left;padding:4px">場次</th>' +
+    '<th style="padding:4px">有填</th><th style="padding:4px">已下載</th></tr>';
+  arr場次.forEach(function (o, i) {
+    str內容 += '<tr><td style="border-bottom:1px solid #ddd;padding:4px"><input type="checkbox" id="c' + i + '"></td>' +
+      '<td style="border-bottom:1px solid #ddd;padding:4px">' + 安全文字(o.str日期) + '</td>' +
+      '<td style="border-bottom:1px solid #ddd;padding:4px"><label for="c' + i + '">' + 安全文字(o.str場次) + '</label></td>' +
+      '<td style="border-bottom:1px solid #ddd;padding:4px;text-align:center">' + Number(o.int有填筆數) + ' 筆</td>' +
+      '<td style="border-bottom:1px solid #ddd;padding:4px;text-align:center">' + (o.int已下載人數 > 0 ? Number(o.int已下載人數) + ' 人' : '—') + '</td></tr>';
+  });
+  str內容 += '</table>';
+  (obj結果.arr欄位提醒 || []).forEach(function (s) { str內容 += '<p style="color:#8a5a00;font-size:12px">⚠ ' + 安全文字(s) + '</p>'; });
+  str內容 += '<p style="color:#666;font-size:12px">每個場次只列一次，同一姓名取時間最晚的報名。已下載的場次再下載會整批替換（其他場次不受影響，舊名冊自動備份）。</p>' +
+    '<p><button onclick="全選()">全選</button> <button id="btn下載" onclick="下載()" style="font-weight:bold">下載</button> ' +
+    '<button onclick="google.script.host.close()">取消</button></p><div id="結果" style="white-space:pre-wrap"></div></div>';
+  str內容 += '<script>var 場次=' + JSON.stringify(arr場次.map(function (o) { return o.str場次; })).replace(/</g, '\\u003c') + ';' +
+    'function 全選(){場次.forEach(function(s,i){document.getElementById("c"+i).checked=true;});}' +
+    'function 下載(){var arr=場次.filter(function(s,i){return document.getElementById("c"+i).checked;});' +
+    'if(arr.length===0){document.getElementById("結果").textContent="請至少勾選一個場次。";return;}' +
+    'document.getElementById("btn下載").disabled=true;document.getElementById("結果").textContent="正在下載 "+arr.length+" 個場次，請稍候…";' +
+    'google.script.run.withSuccessHandler(function(s){document.getElementById("結果").textContent=s;document.getElementById("btn下載").disabled=false;})' +
+    '.withFailureHandler(function(e){document.getElementById("結果").textContent="執行失敗："+(e&&e.message?e.message:e);document.getElementById("btn下載").disabled=false;})' +
+    '.選單_執行下載場次名冊(arr);}</script>';
+  SpreadsheetApp.getUi().showModalDialog(
+    HtmlService.createHtmlOutput(str內容).setWidth(560).setHeight(520), '下載場次名冊');
+}
+
+/**
+ * ----------------------------------------------------------------------------
+ * 函式名稱：選單_執行下載場次名冊
+ * 版本：v3.4.0（2026-11-05）
+ * 用途：勾選視窗按「下載」時呼叫：請平台產生參加名冊，成功後切換到「參加名冊」分頁。
+ * 參數：arr場次 {string[]} 勾選的場次名稱
+ * 傳回：{string} 顯示在視窗中的結果文字
+ * ----------------------------------------------------------------------------
+ */
+function 選單_執行下載場次名冊(arr場次) {
+  const obj結果 = 呼叫系統('副本下載場次名冊', { arr場次: arr場次 });
+  const arr明細 = obj結果.arr明細 || [];
+  if (obj結果.bool成功) {
+    const obj分頁 = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('參加名冊');
+    if (obj分頁) { obj分頁.activate(); }
+  }
+  return (obj結果.bool成功 ? '✔ ' : '✘ 無法下載：') + obj結果.str訊息 + (arr明細.length ? '\n\n・' + arr明細.join('\n・') : '');
 }
