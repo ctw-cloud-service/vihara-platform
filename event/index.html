@@ -2,7 +2,9 @@
 <!-- ===========================================================================
   檔案名稱：event/index.html（法會活動頁）
   所屬模組：法會活動（event）
-  檔案版本：v1.1.1（2026-11-04）
+  檔案版本：v1.1.2（2026-11-06）
+    v1.1.2：載入 event.js 加上版本號（event.js?v=…），推送新版後瀏覽器不會繼續用舊檔；
+            每次改 event.js 請同步修改下方 <script src="event.js?v=…"> 的版本號
     v1.1.1：說明文字改為「產生出車資料」
     v1.1.0：新增「三、大車點名」分頁
   用途說明：
@@ -229,6 +231,6 @@
   <script src="../core/shared/api.js"></script>
   <script src="../core/shared/auth.js"></script>
   <script src="../core/shared/ui.js"></script>
-  <script src="event.js"></script>
+  <script src="event.js?v=1.5.1"></script>  <!-- 改 event.js 時同步改版本號，避免瀏覽器用舊檔 -->
 </body>
 </html>
