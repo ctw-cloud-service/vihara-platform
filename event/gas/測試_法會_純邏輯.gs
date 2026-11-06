@@ -2,7 +2,7 @@
 // 檔案名稱：測試_法會_純邏輯.gs
 // 所屬模組：法會活動（event）
 // 所屬層級：測試（上線後可保留，不影響正式功能）
-// 檔案版本：v1.1.0（2026-10-27）　加測回覆試算表列分類
+// 檔案版本：v1.1.1（2026-11-06）　v1.1.1：主控台結構改為四個分頁（模組設定）；v1.1.0：加測回覆試算表列分類
 // 用途說明：
 //   在 Apps Script 編輯器執行「測試_法會_純邏輯」。
 //   只測不碰任何檔案的計算規則（數秒內完成）：重複群組、時間判讀、比對鍵、
@@ -67,7 +67,7 @@ function 測試_法會_純邏輯() {
   t.記錄('模組定義：可指派三項、不含管理活動',
     obj定義.arr可指派權限.length === 3 && obj定義.arr可指派權限.every(function (o) { return o.str項目 !== '管理活動'; }));
   const obj結構 = 主控台結構_event();
-  t.記錄('主控台結構：三個分頁且欄位不重複', Object.keys(obj結構).length === 3 && Object.keys(obj結構).every(function (k) {
+  t.記錄('主控台結構：四個分頁（含 2026-11-06 的模組設定）且欄位不重複', Object.keys(obj結構).length === 4 && Object.keys(obj結構).every(function (k) {
     const arr = obj結構[k].arr欄位;
     return arr.length > 0 && arr.every(function (s, i) { return arr.indexOf(s) === i; });
   }));

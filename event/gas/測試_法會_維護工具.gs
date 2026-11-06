@@ -2,7 +2,7 @@
 // 檔案名稱：測試_法會_維護工具.gs
 // 所屬模組：法會活動（event）
 // 所屬層級：測試（上線後可保留，不影響正式功能）
-// 檔案版本：v1.1.0（2026-11-05）
+// 檔案版本：v1.1.1（2026-11-06）　v1.1.1：活動編號改用 測試活動ID_（年度編號）
 //   v1.1.0：新增 測試_法會_刪除對內活動純邏輯（數秒）、測試_法會_刪除對內活動（約 1～2 分鐘）
 //   v1.0.0（2026-10-27）：重置法會資料
 // 用途說明：
@@ -44,7 +44,7 @@ function 測試_法會_維護工具() {
       obj環境.arr暫存檔.push(str副本ID);
       return str副本ID;
     });
-    t.記錄('準備：兩場活動 A0001、A0002', 讀取法會活動清單_(obj主控台).map(function (o) { return o.obj值['活動ID']; }).join(',') === 'A0001,A0002');
+    t.記錄('準備：兩場活動 第1場、第2場', 讀取法會活動清單_(obj主控台).map(function (o) { return o.obj值['活動ID']; }).join(',') === [測試活動ID_(1), 測試活動ID_(2)].join(','));
 
     // 盤點（預覽）
     const obj盤點 = 盤點法會資料_('TC');
@@ -54,12 +54,12 @@ function 測試_法會_維護工具() {
 
     // 安全檢查
     t.預期錯誤('沒有確認文字不執行', obj錯誤代碼.參數錯誤, function () { 重置法會資料_('TC', ''); });
-    CacheService.getScriptCache().put(`${str法會作業鎖前綴}TC_A0001`, '測試', 60);
+    CacheService.getScriptCache().put(`${str法會作業鎖前綴}TC_${測試活動ID_(1)}`, '測試', 60);
     t.預期錯誤('有人正在作業時不執行', obj錯誤代碼.系統忙碌, function () { 重置法會資料_('TC', '確定重置'); });
-    CacheService.getScriptCache().remove(`${str法會作業鎖前綴}TC_A0001`);
-    更新法會活動_(obj主控台, 'A0002', { '匯出試算表ID': 'abc' });
+    CacheService.getScriptCache().remove(`${str法會作業鎖前綴}TC_${測試活動ID_(1)}`);
+    更新法會活動_(obj主控台, 測試活動ID_(2), { '匯出試算表ID': 'abc' });
     t.預期錯誤('曾匯出大車點名時不執行', obj錯誤代碼.參數錯誤, function () { 重置法會資料_('TC', '確定重置'); });
-    更新法會活動_(obj主控台, 'A0002', { '匯出試算表ID': '' });
+    更新法會活動_(obj主控台, 測試活動ID_(2), { '匯出試算表ID': '' });
     t.記錄('安全檢查擋下時資料不變', 讀取法會活動清單_(obj主控台).length === 2);
 
     // 執行
@@ -70,11 +70,11 @@ function 測試_法會_維護工具() {
       obj後.int同步紀錄數 === 0 && obj後.int提醒數 === 0 && obj後.int副本清單列數 === 0 && obj後.int流水號目前值 === 0);
     t.記錄('執行：整理副本移到垃圾桶', arr副本ID.every(function (str) { return DriveApp.getFileById(str).isTrashed(); }));
 
-    // 重置後同一份回覆試算表、同一個名稱可重新登錄，編號從 A0001 開始
+    // 重置後同一份回覆試算表、同一個名稱可重新登錄，編號從 第1場 開始
     const obj新 = 新增法會活動(obj住持, { str活動名稱: '重置測試1', str活動類型: '對內', str來源網址: arr表單[0].obj回覆表.getUrl() });
     obj環境.arr暫存檔.push(取得法會活動_(obj主控台, obj新.obj活動.str活動ID).obj值['副本ID']);
-    t.記錄('重置後新活動為 A0001、同名同來源可重新登錄', obj新.obj活動.str活動ID === 'A0001');
-    t.記錄('重置後新活動的副本選單資訊正確', 讀取副本資訊(取得法會活動_(obj主控台, 'A0001').obj值['副本ID']).str記錄ID === 'A0001');
+    t.記錄('重置後新活動為 第1場、同名同來源可重新登錄', obj新.obj活動.str活動ID === 測試活動ID_(1));
+    t.記錄('重置後新活動的副本選單資訊正確', 讀取副本資訊(取得法會活動_(obj主控台, 測試活動ID_(1)).obj值['副本ID']).str記錄ID === 測試活動ID_(1));
 
   } catch (err) {
     t.記錄('測試流程中斷', false, (err && err.message ? err.message : err) + (err && err.stack ? '\n' + err.stack : ''));
@@ -134,7 +134,7 @@ function 測試_法會_刪除對內活動() {
     const obj住持 = obj環境.obj住持;
     const obj主控台 = 開啟法會主控台_('TC');
 
-    // 準備：A0001、A0002 對內，A0003 對外
+    // 準備：第1場、第2場 對內，第3場 對外
     const arr設定 = [['刪除一', '對內'], ['刪除二', '對內'], ['刪除三', '對外']];
     const arr表單 = arr設定.map(function (arr) {
       const obj表單 = 建立法會測試表單_(obj環境, arr[0]);
@@ -148,32 +148,32 @@ function 測試_法會_刪除對內活動() {
       return str副本ID;
     });
     const fn活動ID = function () { return 讀取法會活動清單_(obj主控台).map(function (o) { return o.obj值['活動ID']; }).join(','); };
-    t.記錄('準備：A0001～A0003', fn活動ID() === 'A0001,A0002,A0003');
+    t.記錄('準備：第1場～第3場', fn活動ID() === [測試活動ID_(1), 測試活動ID_(2), 測試活動ID_(3)].join(','));
 
     // 盤點
     t.記錄('盤點：沒有指定時列出 2 場對內活動', (function () {
       const o = 盤點刪除對內活動_('TC', '');
       return o.bool未指定 && o.arr對內.length === 2;
     })());
-    t.記錄('盤點：「全部對內」＝A0001、A0002', 盤點刪除對內活動_('TC', '全部對內').arr刪除.map(function (o) { return o.str活動ID; }).join(',') === 'A0001,A0002');
+    t.記錄('盤點：「全部對內」＝第1場、第2場', 盤點刪除對內活動_('TC', '全部對內').arr刪除.map(function (o) { return o.str活動ID; }).join(',') === [測試活動ID_(1), 測試活動ID_(2)].join(','));
 
     // 安全檢查
-    t.預期錯誤('沒有確認文字不執行', obj錯誤代碼.參數錯誤, function () { 刪除對內活動_('TC', 'A0001', ''); });
+    t.預期錯誤('沒有確認文字不執行', obj錯誤代碼.參數錯誤, function () { 刪除對內活動_('TC', 測試活動ID_(1), ''); });
     t.預期錯誤('沒有指定活動不執行', obj錯誤代碼.參數錯誤, function () { 刪除對內活動_('TC', '', '確定刪除'); });
-    t.預期錯誤('找不到的活動ID 停止', obj錯誤代碼.參數錯誤, function () { 刪除對內活動_('TC', 'A0001, A0099', '確定刪除'); });
-    t.預期錯誤('對外活動停止', obj錯誤代碼.參數錯誤, function () { 刪除對內活動_('TC', 'A0003', '確定刪除'); });
-    CacheService.getScriptCache().put(`${str法會作業鎖前綴}TC_A0001`, '測試', 60);
-    t.預期錯誤('有人正在作業時不執行', obj錯誤代碼.系統忙碌, function () { 刪除對內活動_('TC', 'A0001', '確定刪除'); });
-    CacheService.getScriptCache().remove(`${str法會作業鎖前綴}TC_A0001`);
-    t.記錄('安全檢查擋下時資料不變', fn活動ID() === 'A0001,A0002,A0003' && !DriveApp.getFileById(arr副本ID[0]).isTrashed());
+    t.預期錯誤('找不到的活動ID 停止', obj錯誤代碼.參數錯誤, function () { 刪除對內活動_('TC', 測試活動ID_(1) + ', ' + 測試活動ID_(99), '確定刪除'); });
+    t.預期錯誤('對外活動停止', obj錯誤代碼.參數錯誤, function () { 刪除對內活動_('TC', 測試活動ID_(3), '確定刪除'); });
+    CacheService.getScriptCache().put(`${str法會作業鎖前綴}TC_${測試活動ID_(1)}`, '測試', 60);
+    t.預期錯誤('有人正在作業時不執行', obj錯誤代碼.系統忙碌, function () { 刪除對內活動_('TC', 測試活動ID_(1), '確定刪除'); });
+    CacheService.getScriptCache().remove(`${str法會作業鎖前綴}TC_${測試活動ID_(1)}`);
+    t.記錄('安全檢查擋下時資料不變', fn活動ID() === [測試活動ID_(1), 測試活動ID_(2), 測試活動ID_(3)].join(',') && !DriveApp.getFileById(arr副本ID[0]).isTrashed());
 
-    // 執行：只刪 A0001
-    const arr結果 = 刪除對內活動_('TC', 'a0001', '確定刪除');
-    t.記錄('執行：活動清單剩 A0002、A0003', fn活動ID() === 'A0002,A0003', arr結果.join('｜'));
+    // 執行：只刪 第1場
+    const arr結果 = 刪除對內活動_('TC', 測試活動ID_(1).toLowerCase(), '確定刪除');
+    t.記錄('執行：活動清單剩 第2場、第3場', fn活動ID() === [測試活動ID_(2), 測試活動ID_(3)].join(','), arr結果.join('｜'));
     const arr同步 = 讀取全部資料列(取得法會分頁_(obj主控台, '已同步紀錄').obj分頁, 取得法會分頁_(obj主控台, '已同步紀錄').arr欄位)
       .map(function (o) { return String(o.obj值['活動ID']).trim(); });
-    t.記錄('執行：已同步紀錄只刪 A0001 的列', arr同步.indexOf('A0001') === -1 && arr同步.indexOf('A0002') !== -1 && arr同步.indexOf('A0003') !== -1, arr同步.join(','));
-    t.記錄('執行：A0001 副本移到垃圾桶，A0002、A0003 不動', DriveApp.getFileById(arr副本ID[0]).isTrashed()
+    t.記錄('執行：已同步紀錄只刪 第1場 的列', arr同步.indexOf(測試活動ID_(1)) === -1 && arr同步.indexOf(測試活動ID_(2)) !== -1 && arr同步.indexOf(測試活動ID_(3)) !== -1, arr同步.join(','));
+    t.記錄('執行：第1場 副本移到垃圾桶，第2場、第3場 不動', DriveApp.getFileById(arr副本ID[0]).isTrashed()
       && !DriveApp.getFileById(arr副本ID[1]).isTrashed() && !DriveApp.getFileById(arr副本ID[2]).isTrashed());
     const obj清單 = 讀取精舍副本清單_('TC');
     const int副本欄 = 取得工作表(取得精舍設定試算表('TC'), obj精舍設定結構.副本清單.str分頁).getRange(1, 1, 1, obj清單.int欄數).getValues()[0]
@@ -182,12 +182,12 @@ function 測試_法會_刪除對內活動() {
       const arr = obj清單.arr列.filter(function (r) { return String(r[int副本欄.indexOf('副本ID')]).trim() === str副本ID; })[0];
       return arr ? String(arr[int副本欄.indexOf('狀態')]).trim() : '';
     };
-    t.記錄('執行：副本清單 A0001 停用、A0002 仍啟用', fn狀態(arr副本ID[0]) === obj狀態.停用 && fn狀態(arr副本ID[1]) === obj狀態.啟用);
+    t.記錄('執行：副本清單 第1場 停用、第2場 仍啟用', fn狀態(arr副本ID[0]) === obj狀態.停用 && fn狀態(arr副本ID[1]) === obj狀態.啟用);
 
     // 刪除後同名同來源可重新新增，編號接續（流水號不歸零）
     const obj新 = 新增法會活動(obj住持, { str活動名稱: '刪除測試1', str活動類型: '對內', str來源網址: arr表單[0].obj回覆表.getUrl() });
     obj環境.arr暫存檔.push(取得法會活動_(obj主控台, obj新.obj活動.str活動ID).obj值['副本ID']);
-    t.記錄('重新新增：同名同來源可登錄，編號為 A0004', obj新.obj活動.str活動ID === 'A0004', obj新.obj活動.str活動ID);
+    t.記錄('重新新增：同名同來源可登錄，編號為 第4場', obj新.obj活動.str活動ID === 測試活動ID_(4), obj新.obj活動.str活動ID);
 
   } catch (err) {
     t.記錄('測試流程中斷', false, (err && err.message ? err.message : err) + (err && err.stack ? '\n' + err.stack : ''));
