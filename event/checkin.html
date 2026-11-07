@@ -40,10 +40,10 @@
 
     <!-- 狀態二：輸入報到碼 -->
     <div id="區_登入" hidden>
-      <form class="登入框" id="登入表單" autocomplete="off">
+      <form class="登入框" id="登入表單" autocomplete="off" novalidate>
         <h1 style="font-family:var(--字-宋);color:var(--色-主深);margin:0" id="登入標題">法會報到</h1>
-        <p class="說明" style="margin:0">請輸入承辦人給您的 6 位數報到碼，以及您的姓名。</p>
-        <label class="欄位">報到碼<input class="輸入 報到碼" id="輸入報到碼" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required></label>
+        <p class="說明" style="margin:0">請輸入承辦人給您的 6 位數報到碼，以及您的姓名。用活動的報到連結開啟時，報到碼已經帶入。</p>
+        <label class="欄位">報到碼<input class="輸入 報到碼" id="輸入報到碼" inputmode="numeric" maxlength="6" autocomplete="off"></label>
         <label class="欄位">您的姓名（報到人員）<input class="輸入" id="輸入志工姓名" maxlength="20" required></label>
         <button type="submit" class="按鈕 主要" id="登入按鈕">開始報到</button>
       </form>
@@ -53,7 +53,7 @@
     <div id="區_報到" hidden>
       <div class="頁首">
         <h1 id="活動標題">法會報到</h1>
-        <span class="小字"><span id="報到人員"></span>　<button type="button" class="按鈕 小" id="登出按鈕">結束報到</button></span>
+        <span class="小字"><span id="報到人員"></span>　<button type="button" class="按鈕 小" id="登出按鈕">結束／換活動</button></span>
       </div>
       <p id="報到提醒" class="訊息" role="status" hidden></p>
       <div class="選擇列">
@@ -101,6 +101,6 @@
   <script src="../core/shared/api.js"></script>
   <script src="../core/shared/ui.js"></script>
   <script src="報到表格.js?v=1.2.0"></script>
-  <script src="checkin.js?v=1.2.0"></script>  <!-- 改 js 時同步改版本號，避免瀏覽器用舊檔 -->
+  <script src="checkin.js?v=1.3.0"></script>  <!-- 改 js 時同步改版本號，避免瀏覽器用舊檔 -->
 </body>
 </html>

@@ -2,7 +2,11 @@
 // 檔案名稱：event/checkin.js
 // 所屬模組：法會活動（event）
 // 所屬層級：前端／報到頁
-// 檔案版本：v1.2.0（2026-11-07）
+// 檔案版本：v1.3.0（2026-11-07）
+//   v1.3.0：報到連結帶報到碼（?site=…&code=…）：登入依連結的報到碼分開保存，同一天多場活動時
+//           開哪個連結就進哪一場（同一台裝置可開多個分頁各報各的）；有記住姓名時自動登入；
+//           「結束報到」改為「結束／換活動」
+//   v1.2.1：報到碼輸入改由程式檢查（不再跳出瀏覽器「請符合要求的格式」）；全形數字、5 位數（少了開頭 0）也接受
 //   v1.2.0：取消（決策 AS～AU）：場次已取消時場次清單標「已取消」、預設選沒取消的場次；
 //           已報到／未報到畫面的「取消」欄（還原成未報到、取消參加、恢復參加）由報到表格元件提供
 //   v1.1.0：標籤增加「已報到」「未報到」：與「表格打勾」共用同一個表格元件，只切換篩選（不重新讀取）
@@ -37,8 +41,31 @@ function 報到頁精舍代號() {
   return (new URLSearchParams(window.location.search).get('site') || '').trim().toUpperCase();
 }
 
+/**
+ * 網址上的報到碼（?code=，活動專屬連結；v1.3.0）：只留數字，5 位數補開頭的 0
+ */
+function 網址報到碼() {
+  const str = (new URLSearchParams(window.location.search).get('code') || '').replace(/[^0-9]/g, '');
+  return str.length === 5 ? '0' + str : str;
+}
+
+/**
+ * 把網址的報到碼改成 str碼（空字串＝拿掉），不重新載入頁面（v1.3.0）
+ */
+function 設定網址報到碼(str碼) {
+  try {
+    const obj網址 = new URL(window.location.href);
+    if (str碼) obj網址.searchParams.set('code', str碼); else obj網址.searchParams.delete('code');
+    window.history.replaceState(null, '', obj網址.href);
+  } catch (err) { /* 舊瀏覽器：網址不變 */ }
+}
+
+/**
+ * 保存鍵：工作階段依報到碼分開（v1.3.0），每個活動連結各自登入，不會互相蓋掉；姓名全精舍共用
+ */
 function 報到保存鍵_(str種類) {
-  return `法會報到${str種類}_${報到頁精舍代號()}`;
+  const str碼 = str種類 === '工作階段' ? 網址報到碼() : '';
+  return `法會報到${str種類}_${報到頁精舍代號()}${str碼 ? '_' + str碼 : ''}`;
 }
 
 function 讀取保存_(str鍵) {
@@ -116,11 +143,22 @@ async function 啟動報到頁() {
     取得元素('區_載入').textContent = '網址缺少精舍代號（?site=），請向承辦人索取正確的報到網址。';
     return;
   }
-  設定登入逾時處理(function (str訊息) { 顯示報到登入(str訊息); });
+  // 報到碼失效（暫停、更換）：連結上的舊報到碼也不能用了，拿掉後再顯示輸入畫面（v1.3.0）
+  設定登入逾時處理(function (str訊息) { 清除工作階段代碼(); 設定網址報到碼(''); 顯示報到登入(str訊息); });
   綁定報到事件();
-  取得元素('輸入志工姓名').value = 讀取保存_(報到保存鍵_('姓名'));
+  const str姓名 = 讀取保存_(報到保存鍵_('姓名'));
+  取得元素('輸入志工姓名').value = str姓名;
 
-  if (!讀取工作階段代碼()) { 顯示報到登入(); return; }
+  if (!讀取工作階段代碼()) {
+    // v1.3.0：活動專屬連結（有報到碼）＋記得姓名 → 自動登入；否則顯示輸入畫面（報到碼已帶入）
+    if (網址報到碼() && str姓名) {
+      切換狀態('載入', arr報到頁狀態區塊);
+      await 處理報到登入(null);
+      return;
+    }
+    顯示報到登入();
+    return;
+  }
   切換狀態('載入', arr報到頁狀態區塊);
   try {
     await 進入報到();
@@ -136,19 +174,24 @@ function 顯示報到登入(str提醒, bool一般) {
   停止報到畫面();
   顯示訊息(str提醒 || '', bool一般);
   切換狀態('登入', arr報到頁狀態區塊);
+  // v1.3.0：活動專屬連結帶入報到碼，游標放在姓名
   const el = 取得元素('輸入報到碼');
-  el.value = '';
-  setTimeout(function () { el.focus(); }, 0);
+  el.value = 網址報到碼();
+  const el焦點 = el.value ? 取得元素('輸入志工姓名') : el;
+  setTimeout(function () { el焦點.focus(); }, 0);
 }
 
 /**
  * 送出報到碼
  */
 async function 處理報到登入(e) {
-  e.preventDefault();
-  const str碼 = 取得元素('輸入報到碼').value.replace(/\s/g, '');
+  if (e) e.preventDefault();
+  if (!e) 取得元素('輸入報到碼').value = 網址報到碼();     // 自動登入（v1.3.0）
+  // v1.2.1：全形數字轉半形、去掉空白；5 位數時在前面補 0（舊版報到碼可能少了開頭的 0）
+  const str輸入 = 取得元素('輸入報到碼').value.replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).replace(/\s/g, '');
+  const str碼 = /^[0-9]{5}$/.test(str輸入) ? '0' + str輸入 : str輸入;
   const str姓名 = 取得元素('輸入志工姓名').value.trim();
-  if (!/^[0-9]{6}$/.test(str碼)) { 顯示訊息('報到碼是 6 位數字，請再確認一次。'); return; }
+  if (!/^[0-9]{6}$/.test(str碼)) { 顯示訊息('報到碼是 6 位數字，請再確認一次。'); 取得元素('輸入報到碼').focus(); return; }
   if (str姓名 === '') { 顯示訊息('請輸入您的姓名。'); 取得元素('輸入志工姓名').focus(); return; }
   const el按鈕 = 取得元素('登入按鈕');
   el按鈕.disabled = true;
@@ -156,10 +199,13 @@ async function 處理報到登入(e) {
   顯示訊息('');
   try {
     const obj結果 = await 呼叫平台('event.報到碼登入', { str精舍代號: 報到頁精舍代號(), str報到碼: str碼, str姓名: str姓名 }, { bool不帶工作階段: true });
+    // v1.3.0：網址改成這場活動的連結（重新整理仍是這一場；登入依報到碼分開保存）
+    設定網址報到碼(str碼);
     寫入保存_(報到保存鍵_('工作階段'), obj結果.str工作階段代碼);
     寫入保存_(報到保存鍵_('姓名'), str姓名);
     await 進入報到();
   } catch (err) {
+    if (!e) 顯示報到登入();      // 自動登入失敗（例如報到已暫停）→ 回到輸入畫面再顯示原因
     if (err.str錯誤代碼 !== 'SESSION_EXPIRED') 顯示訊息(取得錯誤訊息(err));
   } finally {
     el按鈕.disabled = false;
@@ -171,10 +217,11 @@ async function 處理報到登入(e) {
  * 結束報到（登出）
  */
 async function 結束報到() {
-  if (!window.confirm('結束報到？下次要再輸入報到碼。')) return;
+  if (!window.confirm('結束這場活動的報到？\n要換另一場活動：可直接開啟那場活動的報到連結，或結束後輸入另一組報到碼。')) return;
   try { await 呼叫平台('驗證.登出'); } catch (err) { /* 後端失敗也照樣登出 */ }
   清除工作階段代碼();
-  顯示報到登入('已結束報到。', true);
+  設定網址報到碼('');            // v1.3.0：回到共用報到頁，輸入另一組報到碼
+  顯示報到登入('已結束報到。要換活動，請輸入另一組報到碼，或開啟那場活動的報到連結。', true);
 }
 
 

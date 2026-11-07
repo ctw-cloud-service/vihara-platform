@@ -2,7 +2,9 @@
 // 檔案名稱：event/法會報到.js
 // 所屬模組：法會活動（event）
 // 所屬層級：前端／法會活動頁「四、法會報到」分頁
-// 檔案版本：v1.1.0（2026-11-07）
+// 檔案版本：v1.2.0（2026-11-07）
+//   v1.2.0：每場活動有自己的報到連結（網址帶報到碼 &code=），複製文字與 QR Code 都用這個連結；
+//           同一天多場活動時，志工開哪個連結就進哪一場（報到頁依連結的報到碼分開保存登入）
 //   v1.1.0：場次清單加「取消場次」「恢復場次」（某一天不舉行；權限 event.開放報到），已取消的場次標紅並說明；
 //           補登表格的「已報到」「未報到」有取消欄（還原成未報到、取消參加、恢復參加）
 // 用途說明：
@@ -37,15 +39,18 @@ let objQR載入中_ = null;
 /**
  * ============================================================================
  * 函式名稱：報到網址
- * 版本：v1.0.0（2026-11-07）
+ * 版本：v1.1.0（2026-11-07）　v1.1.0：可帶報到碼（活動專屬連結）
  * ----------------------------------------------------------------------------
- * 用途：本精舍的報到頁網址（每個精舍固定一個，報到碼決定是哪場活動）。
- * 參數：無
+ * 用途：報到頁網址。不給報到碼＝本精舍共用的報到頁（志工自己輸入報到碼）；
+ *       給報到碼＝這場活動的專屬連結（?site=…&code=報到碼），志工開啟後只要輸入本人姓名。
+ * 參數：str報到碼 {string=}
  * 傳回：{string}
  * ============================================================================
  */
-function 報到網址() {
-  return 取得頁面網址('event/checkin.html', 取得網址精舍代號());
+function 報到網址(str報到碼) {
+  const obj網址 = new URL(取得頁面網址('event/checkin.html', 取得網址精舍代號()));
+  if (str報到碼) obj網址.searchParams.set('code', str報到碼);
+  return obj網址.href;
 }
 
 
@@ -108,7 +113,8 @@ function 畫法會報到() {
       <li><strong>紙本</strong>：按「列印報到表」印出，現場人工打勾；事後按「補登」照紙本打勾（報到方式記「紙本」）。</li>
       <li>報到結束按<strong>暫停報到</strong>，報到碼立即失效；報到紀錄都保留在整理副本的「報到紀錄」分頁。</li>
     </ol>
-    <p class="小字" style="margin:0.5rem 0 0">報到網址：<span class="程式碼">${跳脫HTML(報到網址())}</span>（每個精舍固定一個，報到碼決定是哪一場活動）</p>
+    <p class="小字" style="margin:0.5rem 0 0">每場活動有自己的<strong>報到連結</strong>（網址含報到碼）：志工開啟後只要輸入本人姓名。同一天有多場活動時，各場的連結分開給；
+      同一台裝置開哪個連結就進哪一場，可以開兩個分頁同時報到。</p>
   </section>`;
 
   str += arr.length === 0
@@ -149,9 +155,9 @@ function 產生報到卡片HTML(obj活動) {
     str報到 = `<div class="報到碼區">
       <div>報到碼 <span class="報到碼大字">${跳脫HTML(obj報到.str報到碼 || '（請洽開放報到的人）')}</span>
         <span class="小字">${obj報到.str報到碼產生時間 ? `${跳脫HTML(obj報到.str報到碼產生時間)} 產生` : ''}</span></div>
-      <div class="小字">報到網址：<span class="程式碼">${跳脫HTML(報到網址())}</span></div>
+      <div class="小字">報到連結：<span class="程式碼">${跳脫HTML(報到網址((obj活動.obj報到 || {}).str報到碼))}</span></div>
       <div class="活動操作" style="margin-top:0.4rem">
-        <button type="button" class="按鈕 小" data-動作="複製報到網址" data-活動="${str編號}">複製網址與報到碼</button>
+        <button type="button" class="按鈕 小" data-動作="複製報到網址" data-活動="${str編號}">複製報到連結</button>
         <button type="button" class="按鈕 小" data-動作="顯示QR" data-活動="${str編號}">${obj報到分頁.obj顯示QR[obj活動.str活動ID] ? '隱藏' : '顯示'} QR Code</button>
         ${bool可開放 ? `<button type="button" class="按鈕 小" data-動作="更換報到碼" data-活動="${str編號}">更換報到碼…</button>
         <button type="button" class="按鈕 小 警示" data-動作="暫停報到" data-活動="${str編號}">暫停報到…</button>` : ''}
@@ -321,10 +327,11 @@ async function 畫QR(str活動ID) {
     }
     el.innerHTML = '';
     // eslint-disable-next-line no-new, no-undef
-    new QRCode(el, { text: 報到網址(), width: 168, height: 168 });
+    const obj活動 = 找活動(str活動ID) || {};
+    new QRCode(el, { text: 報到網址((obj活動.obj報到 || {}).str報到碼), width: 168, height: 168 });
     const el說明 = document.createElement('p');
     el說明.className = '小字';
-    el說明.textContent = '掃描開啟報到頁後，輸入報到碼與本人姓名。';
+    el說明.textContent = '掃描開啟這場活動的報到頁後，輸入本人姓名即可（報到碼已帶入）。';
     el.appendChild(el說明);
   } catch (err) {
     el.innerHTML = '<p class="小字">無法產生 QR Code（網路或擋廣告外掛），請改用複製網址。</p>';
@@ -370,10 +377,11 @@ async function 處理報到按鈕(el按鈕) {
     }
 
     case '複製報到網址': {
-      const str文字 = `「${obj活動.str活動名稱}」報到\n報到網址：${報到網址()}\n報到碼：${(obj活動.obj報到 || {}).str報到碼 || ''}`;
+      const str碼 = (obj活動.obj報到 || {}).str報到碼 || '';
+      const str文字 = `「${obj活動.str活動名稱}」報到\n報到連結（開啟後輸入本人姓名）：${報到網址(str碼)}\n報到碼：${str碼}`;
       try {
         await navigator.clipboard.writeText(str文字);
-        顯示區塊訊息(fn位置(), '已複製報到網址與報到碼，可以貼到 LINE 給報到志工。', true);
+        顯示區塊訊息(fn位置(), '已複製這場活動的報到連結，可以貼到 LINE 給報到志工（開啟後輸入本人姓名即可）。', true);
       } catch (err) {
         顯示區塊訊息(fn位置(), `無法自動複製，請手動複製：\n${str文字}`, true);
       }
