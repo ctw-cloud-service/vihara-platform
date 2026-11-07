@@ -2,7 +2,7 @@
 // 檔案名稱：測試_法會_純邏輯.gs
 // 所屬模組：法會活動（event）
 // 所屬層級：測試（上線後可保留，不影響正式功能）
-// 檔案版本：v1.1.1（2026-11-06）　v1.1.1：主控台結構改為四個分頁（模組設定）；v1.1.0：加測回覆試算表列分類
+// 檔案版本：v1.1.2（2026-11-07）　v1.1.2：路由檢查加入 event.報到碼登入（不需登入）；v1.1.1：主控台結構改為四個分頁（模組設定）；v1.1.0：加測回覆試算表列分類
 // 用途說明：
 //   在 Apps Script 編輯器執行「測試_法會_純邏輯」。
 //   只測不碰任何檔案的計算規則（數秒內完成）：重複群組、時間判讀、比對鍵、
@@ -75,8 +75,8 @@ function 測試_法會_純邏輯() {
   t.記錄('路由：每個 action 都以 event. 開頭且有處理函式', Object.keys(obj路由).every(function (k) {
     return k.indexOf('event.') === 0 && typeof obj路由[k].fn === 'function';
   }));
-  t.記錄('路由：副本選單動作不需登入、其他需要登入', Object.keys(obj路由).every(function (k) {
-    return (k.indexOf('event.副本') === 0) === (obj路由[k].bool需登入 === false);
+  t.記錄('路由：副本選單動作與報到碼登入不需登入、其他需要登入', Object.keys(obj路由).every(function (k) {
+    return (k.indexOf('event.副本') === 0 || k === 'event.報到碼登入') === (obj路由[k].bool需登入 === false);
   }));
 
   // ── 二、比對鍵與時間 ──

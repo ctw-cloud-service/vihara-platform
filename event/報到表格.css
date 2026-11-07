@@ -1,0 +1,107 @@
+/* ============================================================================
+   檔案名稱：event/報到表格.css
+   所屬模組：法會活動（event）
+   檔案版本：v1.2.0（2026-11-07）　v1.2.0：取消欄、保留列、請假列、場次取消說明
+             v1.1.0：索引標籤「全部｜已報到｜未報到」、報到頁四個標籤
+   用途說明：報到表格元件（報到表格.js）與報到頁（checkin.html）的樣式。
+             顏色、字型沿用 core/shared/base.css 的變數。
+   ============================================================================ */
+
+.報到表格 { font-size: 0.9375rem; }
+.報到表格 .表格頂 { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: baseline; justify-content: space-between; margin-bottom: 0.5rem; }
+.報到表格 .表格標題 { font-weight: 700; font-size: 1.0625rem; }
+.報到表格 .人數列 { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.25rem 0 0.6rem; }
+.報到表格 .人數標 { border: 1px solid var(--色-線); border-radius: 999px; padding: 0.05rem 0.6rem; font-size: 0.8125rem; color: var(--色-淡字); background: var(--色-面); }
+.報到表格 .人數標 strong { color: var(--色-主深); }
+.報到表格 .更新時間 { font-size: 0.8125rem; color: var(--色-淡字); }
+.報到表格 .搜尋列 { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+.報到表格 .搜尋列 .輸入 { flex: 1; min-width: 10rem; }
+
+.報到表格 .表格捲動 { overflow-x: auto; border: 1px solid var(--色-線); border-radius: 6px; max-height: 70vh; overflow-y: auto; }
+.報到表格 table { width: 100%; border-collapse: collapse; background: var(--色-面); }
+.報到表格 th, .報到表格 td { border-bottom: 1px solid var(--色-線); border-right: 1px solid var(--色-線); padding: 0.3rem 0.35rem; text-align: center; vertical-align: middle; }
+.報到表格 th { position: sticky; top: 0; background: #F3F5F3; font-weight: 500; font-size: 0.8125rem; z-index: 1; line-height: 1.35; }
+.報到表格 td.姓名 { font-weight: 500; white-space: nowrap; }
+.報到表格 td.法名, .報到表格 td.備註 { white-space: nowrap; }
+.報到表格 td.登記 { font-size: 0.8125rem; white-space: pre-line; color: var(--色-淡字); }
+.報到表格 td.備註 { font-size: 0.8125rem; color: #7A5F2B; }
+.報到表格 tr.提醒列 td { background: #FFF8E1; }
+.報到表格 tr.區隔 td { background: var(--色-底); text-align: left; font-size: 0.8125rem; color: var(--色-淡字); }
+.報到表格 tr.閃爍 td { animation: 報到閃爍 1.6s ease-out; }
+@keyframes 報到閃爍 { from { background: #FFE9A8; } to { background: inherit; } }
+.報到表格 tr[hidden] { display: none; }
+
+/* 索引標籤：全部｜已報到｜未報到（v1.1.0） */
+.報到表格 .篩選列 { display: flex; gap: 0; border-bottom: 1px solid var(--色-線); margin: 0 0 0.6rem; }
+.報到表格 .篩選 { font: inherit; background: transparent; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px;
+  padding: 0.45rem 1rem; cursor: pointer; color: var(--色-淡字); font-weight: 700; }
+.報到表格 .篩選[aria-selected="true"] { color: var(--色-主深); border-bottom-color: var(--色-主); }
+.報到表格 .篩選數 { display: inline-block; margin-left: 0.35rem; min-width: 1.4rem; padding: 0 0.35rem; border-radius: 999px;
+  background: var(--色-底); font-size: 0.75rem; line-height: 1.35rem; text-align: center; }
+.報到表格 .篩選[aria-selected="true"] .篩選數 { background: var(--色-主); color: #fff; }
+
+/* 時段格：整格是按鈕 */
+.報到表格 td.格 { padding: 0; min-width: 4.5rem; }
+.報到表格 td.格.灰 { background: #E6E6E6; }
+.報到表格 button.勾 {
+  width: 100%; min-height: 2.6rem; border: 0; background: transparent; cursor: pointer; font: inherit;
+  display: flex; align-items: center; justify-content: center; gap: 0.25rem; color: var(--色-字);
+}
+.報到表格 button.勾:hover { background: rgba(61, 107, 94, 0.08); }
+.報到表格 button.勾 .方框 { width: 1.1rem; height: 1.1rem; border: 1.5px solid #8A9692; border-radius: 3px; background: var(--色-面); }
+.報到表格 button.勾.已到 { color: var(--色-主深); font-weight: 700; }
+.報到表格 button.勾.已到 .時間 { font-weight: 400; font-size: 0.8125rem; }
+.報到表格 button.勾.寫入中 { opacity: 0.55; cursor: progress; }
+.報到表格 button.勾.失敗 { background: var(--色-警示底); color: var(--色-警示); }
+
+/* 新增未報名者 */
+.報到表格 .新增區 { margin-top: 0.75rem; border: 1px dashed var(--色-線); border-radius: 6px; padding: 0.75rem; background: var(--色-面); }
+.報到表格 .新增區 h4 { margin: 0 0 0.5rem; font-size: 0.9375rem; }
+.報到表格 .新增區 .列 { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-end; margin-bottom: 0.5rem; }
+.報到表格 .新增區 .欄位 { flex: 1; min-width: 8rem; }
+.報到表格 .候選清單 { list-style: none; margin: 0.25rem 0 0.5rem; padding: 0; }
+.報到表格 .候選清單 li { display: flex; gap: 0.5rem; align-items: center; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px dashed var(--色-線); }
+.報到表格 .候選清單 .小字 { margin-left: 0.4rem; }
+.報到表格 .時段勾選 { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0.25rem 0 0.5rem; }
+.報到表格 .時段勾選 label { display: flex; gap: 0.3rem; align-items: center; cursor: pointer; }
+
+/* ── 報到頁（checkin.html） ── */
+.報到頁 { max-width: 60rem; margin: 0 auto; padding: 1rem; }
+.報到頁 .頁首 { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 1rem; align-items: baseline; padding-bottom: 0.75rem; border-bottom: 1px solid var(--色-線); }
+.報到頁 .頁首 h1 { font-family: var(--字-宋); font-size: 1.25rem; margin: 0; color: var(--色-主深); }
+.報到頁 .選擇列 { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin: 0.75rem 0; }
+.報到頁 .選擇列 label { display: flex; gap: 0.4rem; align-items: center; }
+.報到頁 .模式列 { display: flex; gap: 0; border-bottom: 1px solid var(--色-線); margin: 0.5rem 0 1rem; }
+.報到頁 .模式列 { flex-wrap: wrap; }
+.報到頁 .模式 { font: inherit; background: transparent; border: 0; border-bottom: 3px solid transparent; padding: 0.6rem 1.1rem; cursor: pointer; color: var(--色-淡字); font-weight: 700; }
+.報到頁 .模式[aria-selected="true"] { color: var(--色-主深); border-bottom-color: var(--色-主); }
+.報到頁 .刷碼框 { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.報到頁 .刷碼框 .輸入 { flex: 1; min-width: 12rem; font-size: 1.25rem; letter-spacing: 0.05em; }
+.報到頁 .結果卡 { margin: 1rem 0; border-radius: 8px; padding: 1rem 1.25rem; border: 2px solid var(--色-線); background: var(--色-面); }
+.報到頁 .結果卡.成功 { border-color: var(--色-主); background: #EEF6F2; }
+.報到頁 .結果卡.注意 { border-color: var(--色-銅); background: #FBF5E8; }
+.報到頁 .結果卡.錯誤 { border-color: var(--色-警示); background: var(--色-警示底); }
+.報到頁 .結果卡 .大字 { font-size: 1.75rem; font-weight: 700; }
+.報到頁 .結果卡 .狀態 { font-size: 1.125rem; margin-top: 0.25rem; }
+.報到頁 .最近清單 { list-style: none; padding: 0; margin: 0; font-size: 0.875rem; color: var(--色-淡字); }
+.報到頁 .最近清單 li { padding: 0.2rem 0; border-bottom: 1px dashed var(--色-線); }
+.報到頁 video { width: 100%; max-width: 22rem; border-radius: 6px; margin-top: 0.5rem; background: #000; }
+.報到頁 .登入框 { max-width: 22rem; margin: 2rem auto; display: grid; gap: 0.9rem; }
+.報到頁 .登入框 .輸入.報到碼 { font-size: 1.5rem; letter-spacing: 0.3em; text-align: center; }
+
+/* v1.2.0：取消（還原成未報到、取消參加、場次取消） */
+.報到表格 .取消列 { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0 0 0.5rem; padding: 0.4rem 0.6rem;
+  border: 1px dashed var(--色-線); border-radius: 6px; background: var(--色-面); }
+.報到表格 th.取消欄, .報到表格 td.取消欄 { text-align: center; width: 3.2rem; white-space: nowrap; }
+.報到表格 td.取消欄 input, .報到表格 th.取消欄 input { width: 1.25rem; height: 1.25rem; cursor: pointer; }
+.報到表格 tr.保留列 td { background: #EEF6F2; }
+.報到表格 tr.請假列 td { background: #F1F1EF; color: var(--色-淡字); }
+.報到表格 tr.請假列 td.姓名 { text-decoration: line-through; text-decoration-color: rgba(0,0,0,0.35); }
+.報到表格 tr.區隔.請假 td { background: #E9E7E2; color: var(--色-字); }
+.報到表格 .訊息.場次取消 { border-color: var(--色-警示); background: var(--色-警示底); color: var(--色-警示); font-weight: 700; }
+
+@media (max-width: 640px) {
+  .報到表格 td.登記, .報到表格 th.登記 { display: none; }
+  .報到表格 td.格 { min-width: 3.6rem; }
+  .報到表格 button.勾 .時間 { display: block; }
+}

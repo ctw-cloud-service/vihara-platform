@@ -2,7 +2,11 @@
 // 檔案名稱：event/event.js
 // 所屬模組：法會活動（event）
 // 所屬層級：前端／法會活動頁
-// 檔案版本：v1.5.1（2026-11-06）
+// 檔案版本：v1.7.0（2026-11-07）
+//   v1.7.0：活動卡片加入「取消活動」（精舍管理員；整場活動不辦，可填原因，可重新開啟）；
+//           狀態「取消」與「結束」一樣算停止（顯示已結束／取消的活動、重新開啟）
+//   v1.6.0：新增「四、法會報到」分頁（畫面與動作在 法會報到.js）：開放／暫停報到、更換報到碼、報到網址與 QR Code、
+//           報到時段、下載場次名冊、列印報到表、補登（報到表格.js）
 //   v1.5.1：修正「重建副本」「刪除活動」按了沒有反應（按鈕分派漏列這兩個動作）
 //   v1.5.0：活動卡片加入「重建副本」「刪除活動」（精舍管理員；輸入完整活動名稱確認；已匯出大車點名先擋下）；
 //           「活動編號」設定卡片（年度編號 2027-001，每年歸零或續編；精舍管理員）
@@ -25,19 +29,21 @@
 //     E2. 大車點名    — 對外活動：產生出車資料、匯出、轉為正式、退回演練、清除
 //     F. 確認對話框   — 不易復原的動作先確認
 //     G. 事件綁定
+//     （四、法會報到 的畫面與動作在 法會報到.js，本檔負責分頁切換與事件分派）
 //
 //   設計原則（與精舍設定頁相同）：
 //     · 畫面一律依 obj頁面狀態 重畫；操作成功後重新向後端讀取，不自行猜測結果
 //     · 每個分頁第一次切換過去時才讀取
 //     · 錯誤一律顯示後端的白話訊息；權限一律由後端檢查，畫面只決定顯示哪些按鈕
 //
-// 相依檔案：core/shared/config.js、api.js、auth.js、ui.js
+// 相依檔案：core/shared/config.js、api.js、auth.js、ui.js；event/報到表格.js、法會報到.js（在本檔之前載入）
 // ============================================================================
 
 /* global obj平台設定, 取得頁面網址, 呼叫平台, 取得網址精舍代號, 設定登入逾時處理,
           顯示Google登入按鈕, 取得我的資訊, 登出平台,
           取得元素, 跳脫HTML, 切換狀態, 顯示訊息, 顯示區塊訊息, 取得錯誤訊息,
-          執行操作, 標記欄位, 清除欄位錯誤 */
+          執行操作, 標記欄位, 清除欄位錯誤,
+          載入法會報到, 處理報到按鈕, 綁定法會報到事件 */
 
 
 // ============================================================================
@@ -45,10 +51,18 @@
 // ============================================================================
 
 // 分頁名稱（與 index.html 的 data-區塊、id 後綴相同）
-const arr法會分頁 = Object.freeze(['活動清單', '同步與整理', '大車點名']);
+const arr法會分頁 = Object.freeze(['活動清單', '同步與整理', '大車點名', '法會報到']);
 
 // 活動狀態對應的標籤樣式
-const obj狀態樣式 = Object.freeze({ 收件中: '進行', 演練: '注意', 正式: '注意', 報到中: '進行', 結束: '' });
+const obj狀態樣式 = Object.freeze({ 收件中: '進行', 演練: '注意', 正式: '注意', 報到中: '進行', 結束: '', 取消: '停用' });
+
+/**
+ * 活動是否已停止（結束或取消）（v1.7.0）
+ * 參數：str狀態 {string}；傳回：{boolean}
+ */
+function 是否已停止(str狀態) {
+  return str狀態 === '結束' || str狀態 === '取消';
+}
 
 // 頁面狀態：畫面一律依此重畫
 const obj頁面狀態 = {
@@ -317,7 +331,7 @@ function 處理分頁按鍵(e) {
  */
 function 載入分頁(str分頁) {
   if (obj頁面狀態.obj載入中[str分頁]) return obj頁面狀態.obj載入中[str分頁];
-  const fn載入 = { 活動清單: 載入活動清單, 同步與整理: 載入同步與整理, 大車點名: 載入大車點名 }[str分頁];
+  const fn載入 = { 活動清單: 載入活動清單, 同步與整理: 載入同步與整理, 大車點名: 載入大車點名, 法會報到: 載入法會報到 }[str分頁];
   if (!fn載入) return Promise.resolve();
   const obj讀取 = fn載入()
     .then(function () { obj頁面狀態.obj已載入[str分頁] = true; })
@@ -522,11 +536,11 @@ async function 載入活動清單() {
  */
 function 畫活動清單() {
   const arr全部 = obj頁面狀態.arr活動;
-  const arr顯示 = arr全部.filter(function (o) { return obj頁面狀態.bool顯示已結束 || o.str活動狀態 !== '結束'; });
-  const int結束 = arr全部.length - arr全部.filter(function (o) { return o.str活動狀態 !== '結束'; }).length;
+  const arr顯示 = arr全部.filter(function (o) { return obj頁面狀態.bool顯示已結束 || !是否已停止(o.str活動狀態); });
+  const int結束 = arr全部.filter(function (o) { return 是否已停止(o.str活動狀態); }).length;
 
   取得元素('摘要_活動清單').textContent = arr全部.length === 0 ? '尚未登錄任何活動'
-    : `共 ${arr全部.length} 場活動${int結束 > 0 ? `（其中 ${int結束} 場已結束）` : ''}`;
+    : `共 ${arr全部.length} 場活動${int結束 > 0 ? `（其中 ${int結束} 場已結束或取消）` : ''}`;
 
   let str = '';
   if (obj頁面狀態.bool可管理) str += 產生新增活動HTML() + 產生編號設定HTML();
@@ -534,13 +548,13 @@ function 畫活動清單() {
   // 工具列：顯示已結束
   if (int結束 > 0) {
     str += `<div class="工具列"><label><input type="checkbox" data-切換="顯示已結束" ${obj頁面狀態.bool顯示已結束 ? 'checked' : ''}>
-      顯示已結束的活動（${int結束} 場）</label></div>`;
+      顯示已結束或取消的活動（${int結束} 場）</label></div>`;
   }
 
   if (arr顯示.length === 0) {
     str += `<p class="空白提示">${arr全部.length === 0
       ? (obj頁面狀態.bool可管理 ? '還沒有活動。請用上方「新增活動」登錄第一場法會。' : '目前沒有指派給您的活動。如需處理，請洽精舍管理員指派。')
-      : '進行中的活動都已結束。'}</p>`;
+      : '進行中的活動都已結束或取消。'}</p>`;
   } else {
     str += `<ul class="卡片清單">${arr顯示.map(產生活動卡片HTML).join('')}</ul>`;
   }
@@ -692,7 +706,7 @@ function 產生新增活動HTML() {
  */
 function 產生活動卡片HTML(obj活動) {
   const str編號 = 跳脫HTML(obj活動.str活動ID);
-  const bool結束 = obj活動.str活動狀態 === '結束';
+  const bool結束 = 是否已停止(obj活動.str活動狀態);   // v1.7.0：結束或取消
   const str承辦人 = obj活動.arr承辦人.length > 0
     ? obj活動.arr承辦人.map(function (o) { return o.str姓名 || o.str帳號; }).join('、') : '未指派';
 
@@ -720,7 +734,8 @@ function 產生活動卡片HTML(obj活動) {
   if (obj活動.obj可做.bool管理) {
     str操作 += bool結束
       ? `<button type="button" class="按鈕 小" data-動作="重新開啟" data-活動="${str編號}">重新開啟</button>`
-      : `<button type="button" class="按鈕 小 警示" data-動作="設為結束" data-活動="${str編號}">設為結束</button>`;
+      : `<button type="button" class="按鈕 小 警示" data-動作="設為結束" data-活動="${str編號}">設為結束</button>
+         <button type="button" class="按鈕 小 警示" data-動作="取消活動" data-活動="${str編號}">取消活動</button>`;
     // 重做（v1.5.0）：重建副本（活動保留）、刪除活動（整場刪除）
     str操作 += `<button type="button" class="按鈕 小 警示" data-動作="重建副本" data-活動="${str編號}">重建副本</button>`;
     str操作 += `<button type="button" class="按鈕 小 警示" data-動作="刪除活動" data-活動="${str編號}">刪除活動</button>`;
@@ -899,6 +914,23 @@ async function 處理活動按鈕(el按鈕) {
       // 剛結束的活動保持顯示，看得到結果與「重新開啟」
       if (bool確定) {
         完成卡片操作(el按鈕, 'event.設為結束', { str活動ID: str活動ID }, ['活動清單', '同步與整理'], fn位置,
+          function () { obj頁面狀態.bool顯示已結束 = true; });
+      }
+      break;
+    }
+
+    case '取消活動': {
+      // v1.7.0：整場活動不辦（例如颱風停辦）；原因選填，記在操作日誌
+      const bool確定 = await 確認對話框(`取消「${obj活動.str活動名稱}」整場活動？`,
+        `<p>活動狀態改為「取消」：不再同步新報名${obj活動.str活動類型 === '對內' ? '，報到碼立即失效，報到頁不能再報到' : ''}。</p>
+         <p>報名、名冊、報到紀錄都保留；誤按可「重新開啟」。</p>
+         <p>只是某一天的場次不舉行，請改到「四、法會報到」按該場次的「取消場次」；個別學員請假，請在報到表格的「未報到」勾「取消參加」。</p>
+         <label class="欄位">取消原因（選填，例如：颱風停辦）<input class="輸入" id="取消活動原因" maxlength="100" autocomplete="off"></label>`,
+        '取消活動');
+      const el原因 = 取得元素('取消活動原因');
+      const str原因 = el原因 ? el原因.value.trim() : '';
+      if (bool確定) {
+        完成卡片操作(el按鈕, 'event.取消活動', { str活動ID: str活動ID, str原因: str原因 }, ['活動清單', '同步與整理', '法會報到'], fn位置,
           function () { obj頁面狀態.bool顯示已結束 = true; });
       }
       break;
@@ -1576,8 +1608,8 @@ function 點名相關活動() {
     return o.str活動類型 === '對外' && (o.obj可做.bool匯出 || o.obj可做.bool管理);
   });
   return {
-    arr進行中: arr對外.filter(function (o) { return o.str活動狀態 !== '結束'; }),
-    arr已結束: arr對外.filter(function (o) { return o.str活動狀態 === '結束'; })
+    arr進行中: arr對外.filter(function (o) { return !是否已停止(o.str活動狀態); }),
+    arr已結束: arr對外.filter(function (o) { return 是否已停止(o.str活動狀態); })
   };
 }
 
@@ -1647,7 +1679,7 @@ function 產生點名卡片HTML(obj活動) {
   if (obj點名.str上次匯出) arr進度.push(`上次匯出 ${obj點名.str上次匯出}`);
   if (obj點名.str匯出分頁名稱) arr進度.push(`點名分頁「${obj點名.str匯出分頁名稱}」`);
   if (obj點名.str轉正式 && str狀態 !== '演練') arr進度.push(`轉正式 ${obj點名.str轉正式}`);
-  if (str狀態 === '結束' && !obj點名.bool有匯出紀錄) arr進度.push('點名試算表中沒有這場活動的資料');
+  if (是否已停止(str狀態) && !obj點名.bool有匯出紀錄) arr進度.push('點名試算表中沒有這場活動的資料');
 
   // 依狀態的提示
   const obj提示 = {
@@ -1665,11 +1697,11 @@ function 產生點名卡片HTML(obj活動) {
   }
   if (bool管理 && str狀態 === '演練') str操作 += `<button type="button" class="按鈕 小 警示" data-動作="轉為正式" data-活動="${str編號}">轉為正式…</button>`;
   if (bool管理 && str狀態 === '正式') str操作 += `<button type="button" class="按鈕 小" data-動作="退回演練" data-活動="${str編號}">退回演練…</button>`;
-  if (bool管理 && str狀態 === '結束' && obj點名.bool有匯出紀錄) {
+  if (bool管理 && 是否已停止(str狀態) && obj點名.bool有匯出紀錄) {
     str操作 += `<button type="button" class="按鈕 小 警示" data-動作="清除點名" data-活動="${str編號}">清除點名資料…</button>`;
   }
 
-  return `<li class="卡片${str狀態 === '結束' ? ' 已結束' : ''}" id="點名卡_${str編號}">
+  return `<li class="卡片${是否已停止(str狀態) ? ' 已結束' : ''}" id="點名卡_${str編號}">
     <div class="活動標題列">
       <span class="活動名稱">${跳脫HTML(obj活動.str活動名稱)}</span>
       <span class="活動代號">${str編號}</span>
@@ -1854,16 +1886,22 @@ function 綁定事件() {
       case '重新讀取': 顯示分頁時載入(el按鈕.dataset.分頁); break;
       case '複製系統帳號': 複製系統帳號(el按鈕); break;
       case '選擇回覆試算表': 處理選擇回覆試算表(el按鈕); break;
-      case '同步活動': case '看提醒': case '設為結束': case '重新開啟': case '看點名':
+      case '同步活動': case '看提醒': case '設為結束': case '取消活動': case '重新開啟': case '看點名':
       case '重建副本': case '刪除活動':
         處理活動按鈕(el按鈕); break;
       case '產生點名': case '匯出點名': case '轉為正式': case '退回演練': case '清除點名': 處理點名按鈕(el按鈕); break;
       case '檢查新報名': case '同步全部': 處理同步按鈕(el按鈕); break;
       case '處理提醒': 處理提醒按鈕(el按鈕); break;
       case '查詢重複': case '移除重複': case '重設標示': 處理重複按鈕(el按鈕); break;
+      case '開放報到': case '暫停報到': case '更換報到碼': case '複製報到網址': case '顯示QR':
+      case '重讀場次': case '下載場次': case '列印報到表': case '補登': case '關閉補登': case '取消場次': case '恢復場次':
+        處理報到按鈕(el按鈕); break;   // 法會報到.js
       default: break;
     }
   });
+
+  // 四、法會報到：展開場次區、報到時段表單（法會報到.js）
+  綁定法會報到事件(el清單);
 
   // 勾選與下拉選單
   el清單.addEventListener('change', function (e) {

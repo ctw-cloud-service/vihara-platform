@@ -1257,7 +1257,7 @@ function 退回法會演練(obj工作階段, obj參數) {
  */
 function 清除法會點名資料(obj工作階段, obj參數) {
   檢查必要參數(obj參數, ['str活動ID'], '清除點名資料');
-  const obj = 取得對外活動_(obj工作階段, obj參數.str活動ID, obj法會權限.管理活動, '清除點名資料', ['結束']);
+  const obj = 取得對外活動_(obj工作階段, obj參數.str活動ID, obj法會權限.管理活動, '清除點名資料', ['結束', '取消']);   // 2026-11-07：取消的活動也可清除
   const obj活動值 = obj.obj活動值;
   const str活動名稱 = String(obj活動值['活動名稱']).trim();
   const str目標ID = String(obj活動值['匯出試算表ID'] || '').trim();

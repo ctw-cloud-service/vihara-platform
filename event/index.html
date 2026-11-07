@@ -2,7 +2,8 @@
 <!-- ===========================================================================
   檔案名稱：event/index.html（法會活動頁）
   所屬模組：法會活動（event）
-  檔案版本：v1.1.2（2026-11-06）
+  檔案版本：v1.2.0（2026-11-07）
+    v1.2.0：新增「四、法會報到」分頁（法會報到.js、報到表格.js、報到表格.css）
     v1.1.2：載入 event.js 加上版本號（event.js?v=…），推送新版後瀏覽器不會繼續用舊檔；
             每次改 event.js 請同步修改下方 <script src="event.js?v=…"> 的版本號
     v1.1.1：說明文字改為「產生出車資料」
@@ -12,13 +13,15 @@
       一、活動清單     新增活動（精舍管理員）、每場活動的狀態、同步、承辦人、結束／重新開啟
       二、同步與整理   檢查與同步新報名、修改提醒、重複檢查與移除
       三、大車點名     對外活動：產生出車資料、匯出、轉為正式、退回演練、清除點名資料
-      （四、法會報到 於第③批加入）
+      四、法會報到     對內活動：開放／暫停報到、報到碼與網址、報到時段、下載場次名冊、列印報到表、補登
     網址：…/vihara-platform/event/?site=精舍代號（入口頁「法會活動」會自動帶上）
   後端動作：event.列出活動／列出承辦人選項／新增活動／設定承辦人／設為結束／重新開啟
             event.同步資料／檢查新回應／列出提醒／處理提醒
             event.設定重複標示／查詢重複／移除重複
             event.產生點名（出車資料）／匯出點名／轉為正式／退回演練／清除點名資料
-  相依檔案：../core/shared/config.js、api.js、auth.js、ui.js、base.css、event.js
+            event.開放報到／暫停報到／更換報到碼、event.列出場次／下載場次名冊／讀取時段／儲存時段／列印報到表、
+            event.讀取報到表格／讀取報到異動／表格報到／查詢報到人員／新增現場報到（補登）
+  相依檔案：../core/shared/config.js、api.js、auth.js、ui.js、base.css、報到表格.css、報到表格.js、法會報到.js、event.js
 =========================================================================== -->
 <html lang="zh-Hant-TW">
 <head>
@@ -30,6 +33,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../core/shared/base.css">
+  <link rel="stylesheet" href="報到表格.css?v=1.2.0">
   <style>
     /* ── 本頁專屬樣式（共用的顏色、匾額、按鈕、輸入欄在 base.css） ── */
 
@@ -47,7 +51,7 @@
 
     /* ── 索引標籤 ── */
     .分頁列 {
-      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+      display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
       margin: 1.25rem 0 0; border-bottom: 1px solid var(--色-線);
     }
     .分頁 {
@@ -129,6 +133,12 @@
     .工具列 label { font-size: 0.9375rem; display: flex; gap: 0.35rem; align-items: center; cursor: pointer; }
     select.輸入 { width: auto; min-width: 14rem; max-width: 100%; }
 
+    /* 四、法會報到 */
+    .報到碼區 { margin: 0.25rem 0 0.25rem; padding: 0.6rem 0.75rem; border: 1px solid var(--色-線); border-radius: 6px; background: var(--色-底); }
+    .報到碼大字 { font-family: ui-monospace, Consolas, monospace; font-size: 1.75rem; font-weight: 700; letter-spacing: 0.2em; color: var(--色-主深); margin: 0 0.5rem; }
+    .QR區 { margin-top: 0.5rem; }
+    .QR區 img, .QR區 canvas { background: #fff; padding: 6px; border: 1px solid var(--色-線); }
+
     /* 後端訊息可能有多行（明細），保留換行 */
     .訊息 { white-space: pre-line; }
 
@@ -192,6 +202,8 @@
               <span class="分頁序號">二</span><span class="分頁名稱">同步與整理<span class="數字標" id="提醒數標" hidden></span></span></button>
             <button type="button" class="分頁" role="tab" id="分頁_大車點名" data-區塊="大車點名" aria-controls="面板_大車點名" aria-selected="false" tabindex="-1">
               <span class="分頁序號">三</span><span class="分頁名稱">大車點名</span></button>
+            <button type="button" class="分頁" role="tab" id="分頁_法會報到" data-區塊="法會報到" aria-controls="面板_法會報到" aria-selected="false" tabindex="-1">
+              <span class="分頁序號">四</span><span class="分頁名稱">法會報到</span></button>
           </nav>
 
           <section class="分頁面板" role="tabpanel" id="面板_活動清單" data-區塊="活動清單" aria-labelledby="分頁_活動清單" hidden>
@@ -205,6 +217,10 @@
           <section class="分頁面板" role="tabpanel" id="面板_大車點名" data-區塊="大車點名" aria-labelledby="分頁_大車點名" hidden>
             <p class="分頁摘要" id="摘要_大車點名">對外活動的大車點名名單</p>
             <div id="內容_大車點名"></div>
+          </section>
+          <section class="分頁面板" role="tabpanel" id="面板_法會報到" data-區塊="法會報到" aria-labelledby="分頁_法會報到" hidden>
+            <p class="分頁摘要" id="摘要_法會報到">對內活動的報到碼、場次名冊、列印與補登</p>
+            <div id="內容_法會報到"></div>
           </section>
         </div>
       </div>
@@ -231,6 +247,8 @@
   <script src="../core/shared/api.js"></script>
   <script src="../core/shared/auth.js"></script>
   <script src="../core/shared/ui.js"></script>
-  <script src="event.js?v=1.5.1"></script>  <!-- 改 event.js 時同步改版本號，避免瀏覽器用舊檔 -->
+  <script src="報到表格.js?v=1.2.0"></script>
+  <script src="法會報到.js?v=1.1.0"></script>
+  <script src="event.js?v=1.7.0"></script>  <!-- 改 event.js 時同步改版本號，避免瀏覽器用舊檔 -->
 </body>
 </html>

@@ -1,0 +1,106 @@
+<!doctype html>
+<!-- ===========================================================================
+  檔案名稱：event/checkin.html（報到頁）
+  所屬模組：法會活動（event）
+  檔案版本：v1.1.0（2026-11-07）
+    v1.1.0：索引標籤增加「已報到」「未報到」兩個畫面（依時段篩選，可直接在清單上打勾）
+  用途說明：
+    報到志工使用的頁面。輸入「報到碼＋本人姓名」登入（不需 Google 帳號），
+    系統依今天日期找到場次，有兩種報到方式：
+      · 刷碼：掃碼槍或鏡頭刷學員證，依目前時間自動選時段（可切換）；查不到時可搜尋姓名、臨時報到
+      · 表格：和紙本報到表一樣的表格，直接打勾（報到表格.js）
+      · 已報到／未報到：同一個表格只列出選的時段已報到或還沒報到的人（v1.1.0）
+    網址：…/vihara-platform/event/checkin.html?site=精舍代號（每個精舍固定一個，報到碼決定是哪場活動）
+    報到碼由精舍管理員或承辦人在法會活動網頁「四、法會報到」開放報到時產生。
+  後端動作：event.報到碼登入／報到資訊／刷碼報到／查詢報到人員／新增現場報到／
+            讀取報到表格／讀取報到異動／表格報到；驗證.登出
+  相依檔案：../core/shared/config.js、api.js、ui.js、base.css、報到表格.css、報到表格.js、checkin.js
+            （不載入 auth.js：報到志工的工作階段由 checkin.js 另外保存，不會蓋掉同一台電腦上承辦人的登入）
+=========================================================================== -->
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>法會報到｜精舍雲端服務平台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../core/shared/base.css">
+  <link rel="stylesheet" href="報到表格.css?v=1.2.0">
+  <style>
+    body { background: var(--色-底); }
+    .訊息 { white-space: pre-line; }
+  </style>
+</head>
+<body>
+  <main class="報到頁" aria-live="polite">
+    <!-- 狀態一：確認中 -->
+    <p id="區_載入" class="載入中">正在確認報到狀態…</p>
+
+    <!-- 狀態二：輸入報到碼 -->
+    <div id="區_登入" hidden>
+      <form class="登入框" id="登入表單" autocomplete="off">
+        <h1 style="font-family:var(--字-宋);color:var(--色-主深);margin:0" id="登入標題">法會報到</h1>
+        <p class="說明" style="margin:0">請輸入承辦人給您的 6 位數報到碼，以及您的姓名。</p>
+        <label class="欄位">報到碼<input class="輸入 報到碼" id="輸入報到碼" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required></label>
+        <label class="欄位">您的姓名（報到人員）<input class="輸入" id="輸入志工姓名" maxlength="20" required></label>
+        <button type="submit" class="按鈕 主要" id="登入按鈕">開始報到</button>
+      </form>
+    </div>
+
+    <!-- 狀態三：報到 -->
+    <div id="區_報到" hidden>
+      <div class="頁首">
+        <h1 id="活動標題">法會報到</h1>
+        <span class="小字"><span id="報到人員"></span>　<button type="button" class="按鈕 小" id="登出按鈕">結束報到</button></span>
+      </div>
+      <p id="報到提醒" class="訊息" role="status" hidden></p>
+      <div class="選擇列">
+        <label id="場次選擇區" hidden>場次 <select class="輸入" id="選擇場次" style="width:auto"></select></label>
+        <span id="場次文字" class="小字"></span>
+      </div>
+
+      <nav class="模式列" role="tablist" aria-label="報到方式">
+        <button type="button" class="模式" role="tab" id="模式_刷碼" aria-selected="true" data-模式="刷碼">刷碼報到</button>
+        <button type="button" class="模式" role="tab" id="模式_表格" aria-selected="false" data-模式="表格">表格打勾</button>
+        <button type="button" class="模式" role="tab" id="模式_已報到" aria-selected="false" data-模式="已報到">已報到</button>
+        <button type="button" class="模式" role="tab" id="模式_未報到" aria-selected="false" data-模式="未報到">未報到</button>
+      </nav>
+
+      <!-- 刷碼 -->
+      <section id="面板_刷碼" role="tabpanel" aria-labelledby="模式_刷碼">
+        <div class="選擇列">
+          <label id="時段選擇區">時段 <select class="輸入" id="選擇時段" style="width:auto"></select></label>
+          <span class="小字" id="時段說明"></span>
+        </div>
+        <form class="刷碼框" id="刷碼表單" autocomplete="off">
+          <input class="輸入" id="輸入學員編號" placeholder="刷學員證，或輸入學員編號後按 Enter" aria-label="學員編號" autofocus>
+          <button type="submit" class="按鈕 主要">報到</button>
+          <button type="button" class="按鈕" id="鏡頭按鈕" hidden>用鏡頭掃描</button>
+          <button type="button" class="按鈕" id="搜尋姓名按鈕">搜尋姓名／臨時報到</button>
+        </form>
+        <video id="鏡頭畫面" playsinline muted hidden></video>
+        <div id="刷碼結果"></div>
+        <div id="搜尋區" hidden></div>
+        <h3 style="font-size:0.9375rem;margin:1.25rem 0 0.25rem">最近報到</h3>
+        <ul class="最近清單" id="最近清單"><li>還沒有</li></ul>
+      </section>
+
+      <!-- 表格 -->
+      <section id="面板_表格" role="tabpanel" aria-labelledby="模式_表格" hidden>
+        <div id="表格區"></div>
+      </section>
+    </div>
+
+    <!-- 頁面層級訊息 -->
+    <p id="訊息" class="訊息" role="alert" hidden></p>
+  </main>
+
+  <script src="../core/shared/config.js"></script>
+  <script src="../core/shared/api.js"></script>
+  <script src="../core/shared/ui.js"></script>
+  <script src="報到表格.js?v=1.2.0"></script>
+  <script src="checkin.js?v=1.2.0"></script>  <!-- 改 js 時同步改版本號，避免瀏覽器用舊檔 -->
+</body>
+</html>

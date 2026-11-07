@@ -2,7 +2,9 @@
  * ============================================================================
  * 檔案名稱：Code.gs（法會活動副本範本的綁定指令碼「副本工具」）
  * 所屬模組：法會活動（event）
- * 檔案版本：v3.4.0（2026-11-05）
+ * 檔案版本：v3.5.0（2026-11-06）
+ *   v3.5.0：「法會報到」加入「設定報到時段」「列印報到表」；下載場次名冊視窗顯示報到時段，
+ *           尚未設定時帶入系統建議的時段（可修改），隨下載一起儲存
  *   v3.4.0：新增「法會報到 → 下載場次名冊」（對內活動：選一個場次，平台產生該場次的名冊分頁「名冊_月日日」）；
  *           依副本內的「法會活動類型」標記只顯示該用的選單（對內：法會報到；對外：大車點名；
  *           沒有標記的舊副本兩個都顯示，系統管理員執行「補齊副本活動類型」後即依類型顯示）；
@@ -30,7 +32,7 @@
  *   下載資料 → 下載新資料
  *   檢查重複 → 查詢重複／跳到下一個重複／標示重複／清除標示／移除重複
  *   大車點名 → 產生出車資料／匯出到大車點名試算表（只在對外活動顯示）
- *   法會報到 → 下載場次名冊（只在對內活動顯示）
+ *   法會報到 → 下載場次名冊／設定報到時段／列印報到表（只在對內活動顯示）
  *   報表     → 由「報表.gs」建立
  *   報表產生器 → 由「報表產生器.gs」建立（點選欄位與條件產生報表、報表範本）
  * ============================================================================
@@ -52,7 +54,7 @@ const str副本類型鍵 = '法會活動類型';
 
 /**
  * 函式名稱：onOpen
- * 版本：v3.4.0（2026-11-05）　v3.4.0：加入「法會報到」選單；大車點名／法會報到依活動類型顯示
+ * 版本：v3.5.0（2026-11-06）　v3.5.0：法會報到加入設定報到時段、列印報到表；v3.4.0：加入「法會報到」選單；大車點名／法會報到依活動類型顯示
  * 用途：開啟試算表時建立選單：下載資料｜檢查重複｜大車點名（對外）｜法會報到（對內）｜報表產生器。
  */
 function onOpen() {
@@ -82,6 +84,9 @@ function onOpen() {
   if (obj顯示.bool法會報到) {
     obj介面.createMenu('法會報到')
       .addItem('下載場次名冊（選一個場次，每場一個分頁）', '選單_下載場次名冊')
+      .addItem('設定報到時段（一支香等分時段報到）', '選單_設定報到時段')
+      .addSeparator()
+      .addItem('列印報到表（A4 紙本，人工打勾）', '選單_列印報到表')
       .addToUi();
   }
   // 報表.gs 只做開檔還原列印設定（不再建立「報表」選單）；沒有貼報表.gs 時略過
@@ -386,10 +391,37 @@ function 選單_匯出點名() {
 
 /**
  * ----------------------------------------------------------------------------
+ * 函式名稱：時段區塊內容
+ * 版本：v3.5.0（2026-11-06）
+ * 用途：下載場次名冊視窗上方的「報到時段」區塊：
+ *         已設定 → 顯示目前的時段（要改請用「設定報到時段」）
+ *         尚未設定、有建議 → 黃底提示＋可修改的文字框（id="時段"），下載時一併儲存
+ *         尚未設定、沒有建議 → 不分時段
+ * 參數：obj時段 {Object} 平台回傳的 { str報到時段, bool已設定, str建議時段 }
+ * 傳回：{string} HTML
+ * ----------------------------------------------------------------------------
+ */
+function 時段區塊內容(obj時段) {
+  const o = obj時段 || {};
+  if (o.bool已設定) {
+    return '<p style="background:#f3efe6;padding:6px">報到時段：<b>' + 安全文字(o.str報到時段) + '</b>' +
+      '<br><span style="color:#666;font-size:12px">名冊會依這些時段加上時段欄（有報名標 ✓）。要修改請用「法會報到 → 設定報到時段」。</span></p>';
+  }
+  if (o.str建議時段) {
+    return '<div style="background:#fff2cc;padding:6px;margin-bottom:8px">尚未設定<b>報到時段</b>。系統從報名內容找到以下時段，' +
+      '<b>下載時會一併儲存</b>；可以修改名稱（例如改成「第一支香」），或清空表示不分時段：' +
+      '<textarea id="時段" style="width:100%;height:46px;margin-top:4px">' + 安全文字(o.str建議時段) + '</textarea>' +
+      '<span style="color:#666;font-size:12px">寫法：名稱 空格 開始-結束（24 小時制），以「；」分隔。</span></div>';
+  }
+  return '<p style="color:#666;font-size:12px">報到時段：不分時段（每個場次報到一次）。一支香這類分時段報到的活動，請用「設定報到時段」設定。</p>';
+}
+
+/**
+ * ----------------------------------------------------------------------------
  * 函式名稱：選單_下載場次名冊
- * 版本：v3.4.0（2026-11-05）
+ * 版本：v3.5.0（2026-11-06）　v3.5.0：視窗上方顯示報到時段（尚未設定時帶入建議，隨下載儲存）
  * 用途：
- *   ① 請平台列出「有效資料」的場次（欄名含日期的欄）與各場次筆數、已下載的名冊分頁
+ *   ① 請平台列出「有效資料」的場次（欄名含日期的欄）與各場次筆數、已下載的名冊分頁、報到時段
  *   ② 顯示選擇視窗（一次選一個場次）；按「下載」後在視窗中呼叫 選單_執行下載場次名冊
  *   每個場次有自己的分頁（例如「名冊_10月18日」）。對外活動或沒有權限時，平台會回覆白話說明。
  * ----------------------------------------------------------------------------
@@ -403,6 +435,7 @@ function 選單_下載場次名冊() {
   // 視窗內容：每個場次一個單選鈕（以序號對應，場次名稱放在 script 變數中，避免特殊符號破壞畫面）
   const str格 = 'border-bottom:1px solid #ddd;padding:4px';
   let str內容 = '<div style="font-family:sans-serif;font-size:14px">';
+  str內容 += 時段區塊內容(obj結果.obj時段);
   str內容 += '<p>「' + 安全文字(obj結果.str活動名稱) + '」共 ' + arr場次.length + ' 個場次。請選一個要下載的場次：</p>';
   str內容 += '<table style="border-collapse:collapse;width:100%">' +
     '<tr style="background:#f3efe6"><th></th><th style="text-align:left;padding:4px">日期</th><th style="text-align:left;padding:4px">場次</th>' +
@@ -426,7 +459,7 @@ function 選單_下載場次名冊() {
     'document.getElementById("btn下載").disabled=true;document.getElementById("結果").textContent="正在下載，請稍候…";' +
     'google.script.run.withSuccessHandler(function(s){document.getElementById("結果").textContent=s;document.getElementById("btn下載").disabled=false;})' +
     '.withFailureHandler(function(e){document.getElementById("結果").textContent="執行失敗："+(e&&e.message?e.message:e);document.getElementById("btn下載").disabled=false;})' +
-    '.選單_執行下載場次名冊(str);}</script>';
+    '.選單_執行下載場次名冊(str,document.getElementById("時段")?document.getElementById("時段").value:null);}</script>';
   SpreadsheetApp.getUi().showModalDialog(
     HtmlService.createHtmlOutput(str內容).setWidth(600).setHeight(520), '下載場次名冊');
 }
@@ -434,18 +467,152 @@ function 選單_下載場次名冊() {
 /**
  * ----------------------------------------------------------------------------
  * 函式名稱：選單_執行下載場次名冊
- * 版本：v3.4.0（2026-11-05）
+ * 版本：v3.5.0（2026-11-06）　v3.5.0：可一併送出報到時段
  * 用途：選擇視窗按「下載」時呼叫：請平台產生這個場次的名冊分頁，成功後切換到那一頁。
- * 參數：str場次 {string} 選擇的場次名稱
+ * 參數：
+ *   str場次       {string}      選擇的場次名稱
+ *   str報到時段   {string|null} 視窗中確認的報到時段（尚未設定時才有；null＝沿用平台設定）
  * 傳回：{string} 顯示在視窗中的結果文字
  * ----------------------------------------------------------------------------
  */
-function 選單_執行下載場次名冊(str場次) {
-  const obj結果 = 呼叫系統('副本下載場次名冊', { str場次: str場次 });
+function 選單_執行下載場次名冊(str場次, str報到時段) {
+  const obj參數 = { str場次: str場次 };
+  if (typeof str報到時段 === 'string') obj參數.str報到時段 = str報到時段;
+  const obj結果 = 呼叫系統('副本下載場次名冊', obj參數);
   const arr明細 = obj結果.arr明細 || [];
   if (obj結果.bool成功 && obj結果.str分頁名) {
     const obj分頁 = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(obj結果.str分頁名);
     if (obj分頁) { obj分頁.activate(); }
   }
   return (obj結果.bool成功 ? '✔ ' : '✘ 無法下載：') + obj結果.str訊息 + (arr明細.length ? '\n\n・' + arr明細.join('\n・') : '');
+}
+
+
+/**
+ * ----------------------------------------------------------------------------
+ * 函式名稱：選單_設定報到時段
+ * 版本：v3.5.0（2026-11-06）
+ * 用途：
+ *   一支香這類「一個場次分幾個時段、每個時段各自報到」的活動，設定報到時段。
+ *   視窗帶入目前的設定（尚未設定時帶入系統從報名內容找到的建議），修改後按「儲存」。
+ *   清空＝不分時段（共修、培訓）。已下載的名冊要重新下載，時段欄才會跟著改。
+ * ----------------------------------------------------------------------------
+ */
+function 選單_設定報到時段() {
+  處理中('正在讀取報到時段…');
+  const obj結果 = 呼叫系統('副本讀取時段');
+  if (!obj結果.bool成功) { 提示('無法讀取報到時段', obj結果.str訊息); return; }
+  const o = obj結果.obj時段 || {};
+  const str預填 = o.bool已設定 ? o.str報到時段 : (o.str建議時段 || '');
+
+  let str內容 = '<div style="font-family:sans-serif;font-size:14px">';
+  str內容 += '<p>「' + 安全文字(obj結果.str活動名稱) + '」的報到時段：' +
+    (o.bool已設定 ? '' : '<span style="color:#8a5a00">尚未設定' + (o.str建議時段 ? '，以下是系統從報名內容找到的建議' : '（目前不分時段）') + '</span>') + '</p>';
+  str內容 += '<textarea id="時段" style="width:100%;height:70px">' + 安全文字(str預填) + '</textarea>';
+  str內容 += '<p style="color:#666;font-size:12px">寫法：名稱 空格 開始-結束（24 小時制），以「；」分隔，例如<br>' +
+    '第一支香 14:00-14:40；第二支香 14:50-15:30；第三支香 15:40-16:20<br>' +
+    '名稱可省略（自動用「第一時段」…）；名稱是「第N支香」時，三個都報的人顯示「三支香」。<br>' +
+    '<b>清空＝不分時段</b>（共修、培訓：每個場次報到一次）。<br>' +
+    '已下載的場次名冊不會自動改，儲存後請重新下載要用的場次。</p>' +
+    '<p><button id="btn儲存" onclick="儲存()" style="font-weight:bold">儲存</button> ' +
+    '<button onclick="google.script.host.close()">關閉</button></p><div id="結果" style="white-space:pre-wrap"></div></div>';
+  str內容 += '<script>function 儲存(){document.getElementById("btn儲存").disabled=true;' +
+    'document.getElementById("結果").textContent="正在儲存，請稍候…";' +
+    'google.script.run.withSuccessHandler(function(s){document.getElementById("結果").textContent=s;document.getElementById("btn儲存").disabled=false;})' +
+    '.withFailureHandler(function(e){document.getElementById("結果").textContent="執行失敗："+(e&&e.message?e.message:e);document.getElementById("btn儲存").disabled=false;})' +
+    '.選單_執行儲存時段(document.getElementById("時段").value);}</script>';
+  SpreadsheetApp.getUi().showModalDialog(
+    HtmlService.createHtmlOutput(str內容).setWidth(560).setHeight(400), '設定報到時段');
+}
+
+/**
+ * ----------------------------------------------------------------------------
+ * 函式名稱：選單_執行儲存時段
+ * 版本：v3.5.0（2026-11-06）
+ * 用途：設定視窗按「儲存」時呼叫：請平台檢查並儲存報到時段。
+ * 參數：str報到時段 {string}
+ * 傳回：{string} 顯示在視窗中的結果文字
+ * ----------------------------------------------------------------------------
+ */
+function 選單_執行儲存時段(str報到時段) {
+  const obj結果 = 呼叫系統('副本儲存時段', { str報到時段: String(str報到時段 || '') });
+  return (obj結果.bool成功 ? '✔ ' : '✘ 無法儲存：') + obj結果.str訊息;
+}
+
+/**
+ * ----------------------------------------------------------------------------
+ * 函式名稱：選單_列印報到表
+ * 版本：v3.5.0（2026-11-06）
+ * 用途：
+ *   ① 請平台列出場次，只留下已下載名冊的場次
+ *   ② 選一個場次 → 平台依名冊產生「報到表_月日日」分頁（A4 直式；沒報名的時段灰底；
+ *      空白列補滿最後一頁）→ 視窗出現「開啟 PDF 列印」
+ *   每次列印整頁重建，在報到表分頁打的勾不會保留；紙本打勾後請到法會活動網頁「補登」。
+ * ----------------------------------------------------------------------------
+ */
+function 選單_列印報到表() {
+  處理中('正在讀取場次…');
+  const obj結果 = 呼叫系統('副本列出場次');
+  if (!obj結果.bool成功) { 提示('無法列出場次', obj結果.str訊息); return; }
+  const arr場次 = (obj結果.arr場次 || []).filter(function (o) { return o.str分頁名; });
+  if (arr場次.length === 0) {
+    提示('還沒有場次名冊', '請先用「法會報到 → 下載場次名冊」下載要報到的場次，再列印報到表。');
+    return;
+  }
+
+  const str格 = 'border-bottom:1px solid #ddd;padding:4px';
+  let str內容 = '<div style="font-family:sans-serif;font-size:14px">';
+  str內容 += '<p>請選一個場次，依名冊產生紙本報到表：</p>';
+  str內容 += '<table style="border-collapse:collapse;width:100%">' +
+    '<tr style="background:#f3efe6"><th></th><th style="text-align:left;padding:4px">日期</th><th style="text-align:left;padding:4px">場次</th>' +
+    '<th style="text-align:left;padding:4px">名冊</th></tr>';
+  arr場次.forEach(function (o, i) {
+    str內容 += '<tr><td style="' + str格 + '"><input type="radio" name="場次" id="c' + i + '"></td>' +
+      '<td style="' + str格 + '">' + 安全文字(o.str日期) + '</td>' +
+      '<td style="' + str格 + '"><label for="c' + i + '">' + 安全文字(o.str場次) + '</label></td>' +
+      '<td style="' + str格 + '">' + 安全文字(o.str分頁名) + '（' + Number(o.int已下載人數) + ' 人）</td></tr>';
+  });
+  str內容 += '</table>';
+  const o時段 = obj結果.obj時段 || {};
+  str內容 += '<p style="color:#666;font-size:12px">' +
+    (o時段.bool已設定 ? '報到時段：' + 安全文字(o時段.str報到時段) + '。' : '不分時段（每人一個「報到」格）。') +
+    '依名冊的 ✓ 標灰底（沒報名的時段）；最後一頁補滿空白列供手寫。每次產生整頁重建。</p>' +
+    '<p><button id="btn產生" onclick="產生()" style="font-weight:bold">產生報到表</button> ' +
+    '<button onclick="google.script.host.close()">關閉</button></p>' +
+    '<p id="列印" style="display:none"><a id="連結" target="_blank" style="font-weight:bold;font-size:16px">🖨 開啟 PDF 列印（A4 直式）</a></p>' +
+    '<div id="結果" style="white-space:pre-wrap"></div></div>';
+  str內容 += '<script>var 場次=' + JSON.stringify(arr場次.map(function (o) { return o.str場次; })).replace(/</g, '\\u003c') + ';' +
+    'function 產生(){var str="";場次.forEach(function(s,i){if(document.getElementById("c"+i).checked)str=s;});' +
+    'if(str===""){document.getElementById("結果").textContent="請先選一個場次。";return;}' +
+    'document.getElementById("btn產生").disabled=true;document.getElementById("列印").style.display="none";' +
+    'document.getElementById("結果").textContent="正在產生，請稍候…";' +
+    'google.script.run.withSuccessHandler(function(o){document.getElementById("結果").textContent=o.str文字;' +
+    'if(o.str網址){document.getElementById("連結").href=o.str網址;document.getElementById("列印").style.display="block";}' +
+    'document.getElementById("btn產生").disabled=false;})' +
+    '.withFailureHandler(function(e){document.getElementById("結果").textContent="執行失敗："+(e&&e.message?e.message:e);document.getElementById("btn產生").disabled=false;})' +
+    '.選單_執行列印報到表(str);}</script>';
+  SpreadsheetApp.getUi().showModalDialog(
+    HtmlService.createHtmlOutput(str內容).setWidth(600).setHeight(520), '列印報到表');
+}
+
+/**
+ * ----------------------------------------------------------------------------
+ * 函式名稱：選單_執行列印報到表
+ * 版本：v3.5.0（2026-11-06）
+ * 用途：列印視窗按「產生報到表」時呼叫：請平台產生報到表分頁，成功後切換到那一頁，並傳回 PDF 網址。
+ * 參數：str場次 {string}
+ * 傳回：{Object} { str文字（顯示在視窗中）, str網址（PDF；失敗時空字串） }
+ * ----------------------------------------------------------------------------
+ */
+function 選單_執行列印報到表(str場次) {
+  const obj結果 = 呼叫系統('副本列印報到表', { str場次: str場次 });
+  const arr明細 = obj結果.arr明細 || [];
+  if (obj結果.bool成功 && obj結果.str分頁名) {
+    const obj分頁 = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(obj結果.str分頁名);
+    if (obj分頁) { obj分頁.activate(); }
+  }
+  return {
+    str文字: (obj結果.bool成功 ? '✔ ' : '✘ 無法產生：') + obj結果.str訊息 + (arr明細.length ? '\n\n・' + arr明細.join('\n・') : ''),
+    str網址: obj結果.bool成功 ? String(obj結果.str列印網址 || '') : ''
+  };
 }
