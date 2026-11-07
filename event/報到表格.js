@@ -2,7 +2,8 @@
 // 檔案名稱：event/報到表格.js
 // 所屬模組：法會活動（event）
 // 所屬層級：前端／共用元件
-// 檔案版本：v1.2.0（2026-11-07）
+// 檔案版本：v1.3.0（2026-11-07）
+//   v1.3.0：備註欄加上用齋（名冊合併用齋登記時：大寮・午齋×2）
 //   v1.2.0：取消（決策 AS～AU）：
 //           · 「已報到」「未報到」畫面最右邊加「取消」勾選欄（可全選）：
 //               勾已報到的人 →「還原成未報到」（點錯報到者）；勾還沒報到的人 →「取消參加」（學員請假，可填原因）
@@ -278,7 +279,7 @@ function 建立報到表格(obj設定) {
           title="${跳脫HTML(str說明)}" aria-label="${跳脫HTML(str說明)}" aria-pressed="${obj勾 ? 'true' : 'false'}">${obj勾
           ? `✓ <span class="時間">${跳脫HTML(obj勾.str時間 || '')}</span>` : (obj狀態.obj失敗[str格鍵] ? '！' : '<span class="方框"></span>')}</button></td>`;
       }
-      str += `<td class="備註">${跳脫HTML([o.str提醒 || '', 取消參加說明(o)].filter(Boolean).join('；'))}</td>`;
+      str += `<td class="備註">${跳脫HTML([o.str提醒 || '', o.str用齋 || '', 取消參加說明(o)].filter(Boolean).join('；'))}</td>`;   // v1.3.0：用齋
       if (bool取消欄) str += 取消格HTML(o);
       str += '</tr>';
     });
@@ -343,7 +344,7 @@ function 建立報到表格(obj設定) {
         str += `<td class="格"><button type="button" class="勾" data-報到="勾" data-鍵="${跳脫HTML(o.str鍵)}" data-時段="${j}"
           aria-label="${跳脫HTML(`${o.str姓名}「${t.str名稱}」報到`)}"><span class="方框"></span></button></td>`;
       });
-      str += `<td class="備註">${跳脫HTML(取消參加說明(o) + (o.obj取消參加.str人員 ? `（${o.obj取消參加.str人員} ${o.obj取消參加.str時間}）` : ''))}</td>${取消格HTML(o)}</tr>`;
+      str += `<td class="備註">${跳脫HTML([o.str用齋 || '', 取消參加說明(o) + (o.obj取消參加.str人員 ? `（${o.obj取消參加.str人員} ${o.obj取消參加.str時間}）` : '')].filter(Boolean).join('；'))}</td>${取消格HTML(o)}</tr>`;
     });
     return str;
   }

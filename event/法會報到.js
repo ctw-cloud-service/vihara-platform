@@ -2,7 +2,8 @@
 // 檔案名稱：event/法會報到.js
 // 所屬模組：法會活動（event）
 // 所屬層級：前端／法會活動頁「四、法會報到」分頁
-// 檔案版本：v1.2.0（2026-11-07）
+// 檔案版本：v1.3.0（2026-11-07）
+//   v1.3.0：合併用齋登記：精舍管理員設定「用齋登記表」連結（說明卡片下方）；每場活動選「合併用齋：午齋／藥石／不合併」（場次區）
 //   v1.2.0：每場活動有自己的報到連結（網址帶報到碼 &code=），複製文字與 QR Code 都用這個連結；
 //           同一天多場活動時，志工開哪個連結就進哪一場（報到頁依連結的報到碼分開保存登入）
 //   v1.1.0：場次清單加「取消場次」「恢復場次」（某一天不舉行；權限 event.開放報到），已取消的場次標紅並說明；
@@ -116,6 +117,7 @@ function 畫法會報到() {
     <p class="小字" style="margin:0.5rem 0 0">每場活動有自己的<strong>報到連結</strong>（網址含報到碼）：志工開啟後只要輸入本人姓名。同一天有多場活動時，各場的連結分開給；
       同一台裝置開哪個連結就進哪一場，可以開兩個分頁同時報到。</p>
   </section>`;
+  if (obj頁面狀態.bool可管理) str += 產生用齋登記表HTML();
 
   str += arr.length === 0
     ? `<p class="空白提示">${obj頁面狀態.arr活動.some(function (o) { return o.str活動類型 === '對內' && !是否已停止(o.str活動狀態); })
@@ -240,6 +242,18 @@ function 畫場次區(str活動ID) {
       <p class="小字" style="margin:0.2rem 0 0.4rem">寫法：名稱 空格 開始-結束（24 小時制），以「；」分隔；清空＝不分時段。改了之後請重新下載要用的場次。</p>
       <button type="submit" class="按鈕 小">儲存報到時段</button>
     </form>`;
+
+  // 合併用齋登記（v1.3.0）
+  const o用齋 = obj.obj用齋 || { str餐別: '午齋', bool有登記表: false };
+  str += `<h4 style="margin:1rem 0 0.4rem;font-size:0.9375rem">合併用齋登記</h4>
+    <form data-報到表單="用齋" data-活動="${str編號}" class="工具列" style="flex-wrap:wrap;gap:0.5rem">
+      <select class="輸入" name="用齋" style="width:auto" aria-label="合併用齋">
+        ${['午齋', '藥石', '不合併'].map(function (s) { return `<option value="${s}" ${o用齋.str餐別 === s ? 'selected' : ''}>${s === '不合併' ? '不合併' : '合併' + s}</option>`; }).join('')}
+      </select>
+      <button type="submit" class="按鈕 小">儲存</button>
+    </form>
+    <p class="小字" style="margin:0.3rem 0 0">下載名冊時，把用齋登記表中<strong>同一天</strong>、所選餐別的義工合併進名冊：已報名的補上用齋與組別，沒報名的義工加入名冊（算已報名），報到表備註印「大寮・午齋×2」。改了之後請重新下載要用的場次。
+      ${o用齋.bool有登記表 ? '' : '<br><span style="color:#7A5F2B">精舍還沒有設定用齋登記表，請精舍管理員在本頁上方「用齋登記表」設定。</span>'}</p>`;
 
   str += '<h4 style="margin:1rem 0 0.4rem;font-size:0.9375rem">場次</h4>';
   if ((obj.arr欄位提醒 || []).length > 0) str += `<p class="小字" style="color:#7A5F2B">${obj.arr欄位提醒.map(跳脫HTML).join('<br>')}</p>`;
@@ -482,6 +496,63 @@ async function 處理報到按鈕(el按鈕) {
  * 傳回：{Promise<void>}
  * ============================================================================
  */
+/**
+ * ============================================================================
+ * 函式名稱：產生用齋登記表HTML
+ * 版本：v1.0.0（2026-11-07）
+ * ----------------------------------------------------------------------------
+ * 用途：精舍管理員設定「用齋登記表」連結（每個精舍一份，所有活動共用）。目前值來自 event.讀取編號設定。
+ * 參數：無
+ * 傳回：{string}
+ * ============================================================================
+ */
+function 產生用齋登記表HTML() {
+  const str編號 = (obj頁面狀態.obj編號設定 || {}).str用齋登記表ID || '';
+  const str網址 = str編號 ? `https://docs.google.com/spreadsheets/d/${str編號}/edit` : '';
+  return `<section class="卡片" id="卡片_用齋登記表">
+    <h3>用齋登記表</h3>
+    <p class="小字" style="margin:0 0 0.5rem">義工預訂午齋、藥石便當的試算表（例如「普泉用齋登記表」）。下載對內活動的場次名冊時，會把同一天的用齋義工合併進名冊；
+      每頁第一列要寫日期與餐別（例如「11/9(一)午齋」）。登記表要分享給部署平台的帳號（檢視者即可）。</p>
+    <form data-報到表單="用齋登記表" class="工具列" style="flex-wrap:wrap;gap:0.5rem">
+      <input class="輸入" name="網址" style="flex:1;min-width:16rem" placeholder="貼上登記表網址（https://docs.google.com/spreadsheets/d/…）" value="${跳脫HTML(str網址)}">
+      <button type="submit" class="按鈕 小">${str編號 ? '更新並檢查' : '設定並檢查'}</button>
+      ${str編號 ? `<a class="小字" href="${跳脫HTML(str網址)}" target="_blank" rel="noopener">開啟登記表</a>` : ''}
+    </form>
+  </section>`;
+}
+
+
+/**
+ * 用齋登記表表單：送出 event.設定用齋登記表（清空＝不使用），結果顯示在卡片（v1.3.0）
+ */
+async function 處理用齋登記表表單(el表單) {
+  const fn位置 = function () { return 取得元素('卡片_用齋登記表'); };
+  const el按鈕 = el表單.querySelector('button[type=submit]');
+  await 執行操作(el按鈕, async function () {
+    const obj結果 = await 呼叫平台('event.設定用齋登記表', { str網址: el表單.querySelector('[name=網址]').value });
+    try { obj頁面狀態.obj編號設定 = await 呼叫平台('event.讀取編號設定'); } catch (err) { /* 卡片仍可顯示 */ }
+    畫法會報到();
+    顯示並捲到訊息(fn位置(), 組合結果訊息(obj結果), true);
+  }, function (str訊息) { 顯示並捲到訊息(fn位置(), str訊息); });
+}
+
+
+/**
+ * 合併用齋表單：送出 event.設定合併用齋，重新讀取場次（v1.3.0）
+ */
+async function 處理合併用齋表單(el表單) {
+  const str活動ID = el表單.dataset.活動;
+  const fn位置 = function () { return 取得元素(`報到卡_${str活動ID}`); };
+  const el按鈕 = el表單.querySelector('button[type=submit]');
+  await 執行操作(el按鈕, async function () {
+    const obj結果 = await 呼叫平台('event.設定合併用齋', { str活動ID: str活動ID, str用齋: el表單.querySelector('[name=用齋]').value });
+    obj報到分頁.obj場次[str活動ID] = await 呼叫平台('event.列出場次', { str活動ID: str活動ID });
+    畫場次區(str活動ID);
+    顯示並捲到訊息(fn位置(), obj結果.str訊息, true);
+  }, function (str訊息) { 顯示並捲到訊息(fn位置(), str訊息); });
+}
+
+
 async function 處理報到時段表單(el表單) {
   const str活動ID = el表單.dataset.活動;
   const fn位置 = function () { return 取得元素(`報到卡_${str活動ID}`); };
@@ -524,5 +595,7 @@ function 綁定法會報到事件(el清單) {
     if (!el表單) return;
     e.preventDefault();
     if (el表單.dataset.報到表單 === '時段') 處理報到時段表單(el表單);
+    if (el表單.dataset.報到表單 === '用齋') 處理合併用齋表單(el表單);
+    if (el表單.dataset.報到表單 === '用齋登記表') 處理用齋登記表表單(el表單);
   });
 }
