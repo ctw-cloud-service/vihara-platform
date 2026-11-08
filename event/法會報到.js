@@ -2,7 +2,8 @@
 // 檔案名稱：event/法會報到.js
 // 所屬模組：法會活動（event）
 // 所屬層級：前端／法會活動頁「四、法會報到」分頁
-// 檔案版本：v1.5.0（2026-11-08）
+// 檔案版本：v1.6.0（2026-11-08）
+//   v1.6.0：「名冊合併來源」移到活動卡片上（開放報到按鈕下方），承辦人每場活動直接選要不要合併副會長回報、用齋登記，不必展開
 //   v1.5.0：場次區不再列出每個場次：下載名冊改在整理副本「法會報到 → 下載場次名冊」勾選場次（一支香、共修、培訓都一樣，決策 BK）；
 //           網頁只留「已下載的場次」下拉選單＋列印報到表、補登、取消場次；合併來源說明改成新版名冊欄位
 //   v1.4.1：兩份合併來源都是選填：場次區只顯示精舍有設定的來源；都沒設定時只說明「名冊只用報名資料」
@@ -114,7 +115,7 @@ function 畫法會報到() {
   let str = `<section class="卡片" id="卡片_報到說明">
     <h3>法會報到的步驟</h3>
     <ol class="明細">
-      <li><strong>下載場次名冊</strong>：開啟活動的<strong>整理副本</strong>，選單「法會報到 → 下載場次名冊」勾選要整理的場次（可同時選擇要不要合併副會長回報、用齋登記；分時段的活動第一次下載時確認報到時段）。</li>
+      <li><strong>下載場次名冊</strong>：開啟活動的<strong>整理副本</strong>，選單「法會報到 → 下載場次名冊」勾選要整理的場次（分時段的活動第一次下載時確認報到時段）。要不要合併副會長回報、用齋登記，在活動卡片的「<strong>名冊合併</strong>」選擇。</li>
       <li><strong>開放報到</strong>：產生 6 位數報到碼。把<strong>報到網址</strong>（或 QR Code）和報到碼交給報到志工；志工輸入報到碼與本人姓名後，可以刷碼或用表格打勾報到。</li>
       <li><strong>紙本</strong>：按「列印報到表」印出，現場人工打勾；事後按「補登」照紙本打勾（報到方式記「紙本」）。</li>
       <li>報到結束按<strong>暫停報到</strong>，報到碼立即失效；報到紀錄都保留在整理副本的「報到紀錄」分頁。</li>
@@ -138,6 +139,49 @@ function 畫法會報到() {
     const obj補 = obj報到分頁.obj補登[o.str活動ID];
     if (obj補 && obj報到分頁.obj展開[o.str活動ID]) 開始補登(o.str活動ID, obj補.str場次);
   });
+}
+
+
+/**
+ * ============================================================================
+ * 函式名稱：產生卡片合併HTML_（內部使用）
+ * 版本：v1.0.0（2026-11-08）
+ * ----------------------------------------------------------------------------
+ * 用途：活動卡片上的「名冊合併」選項（承辦人每場活動自己決定，決策 BK）：
+ *         精舍有設定副會長回報表 → 副會長回報：合併／不合併
+ *         精舍有設定用齋登記表   → 用齋登記：合併午齋／合併藥石／不合併
+ *         兩份都沒設定           → 一行說明「只用報名資料」
+ *       沒設定的來源用隱藏欄位帶目前值，儲存時不會改到。按「儲存」呼叫 event.設定合併用齋。
+ * 參數：obj活動 {Object} event.列出活動 的一筆（obj報到.str合併用齋、str合併副會長回報）
+ * 傳回：{string} HTML
+ * ============================================================================
+ */
+function 產生卡片合併HTML_(obj活動) {
+  const o來源 = obj頁面狀態.obj合併來源 || {};
+  const obj報到 = obj活動.obj報到 || {};
+  const str編號 = 跳脫HTML(obj活動.str活動ID);
+  const str用齋 = obj報到.str合併用齋 || '午齋';
+  const str回報 = obj報到.str合併副會長回報 || '合併';
+  if (!o來源.bool有回報表 && !o來源.bool有登記表) {
+    return `<p class="小字" style="margin:0.6rem 0 0">名冊合併：只用報名資料${obj頁面狀態.bool可管理 ? '（可在上方「名冊合併來源」設定副會長回報表、用齋登記表）' : '（精舍尚未設定副會長回報表、用齋登記表）'}。</p>`;
+  }
+  const fn選單 = function (str名, str標籤, arr值, str目前, fn文字) {
+    return `<label class="小字">${str標籤}
+      <select class="輸入" name="${str名}" style="width:auto" aria-label="${str標籤}">
+        ${arr值.map(function (s) { return `<option value="${s}" ${s === str目前 ? 'selected' : ''}>${fn文字(s)}</option>`; }).join('')}
+      </select></label>`;
+  };
+  const str回報欄 = o來源.bool有回報表
+    ? fn選單('副會長回報', '副會長回報', ['合併', '不合併'], str回報, function (s) { return s; })
+    : `<input type="hidden" name="副會長回報" value="${跳脫HTML(str回報)}">`;
+  const str用齋欄 = o來源.bool有登記表
+    ? fn選單('用齋', '用齋登記', ['午齋', '藥石', '不合併'], str用齋, function (s) { return s === '不合併' ? s : '合併' + s; })
+    : `<input type="hidden" name="用齋" value="${跳脫HTML(str用齋)}">`;
+  return `<form data-報到表單="用齋" data-活動="${str編號}" class="工具列 合併選項" style="flex-wrap:wrap;gap:0.5rem;align-items:center;margin-top:0.6rem">
+      <strong class="小字">名冊合併</strong>${str回報欄}${str用齋欄}
+      <button type="submit" class="按鈕 小">儲存</button>
+    </form>
+    <p class="小字" style="margin:0.2rem 0 0">下載場次名冊時合併<strong>同一天</strong>的資料：出席或用齋但沒報名的人加入名冊，不參加的人自動登記取消參加。改了之後請重新下載要用的場次。</p>`;
 }
 
 
@@ -186,8 +230,9 @@ function 產生報到卡片HTML(obj活動) {
     <div class="活動資訊"><span>${跳脫HTML(obj活動.str日期顯示 || '')}</span><span>${跳脫HTML(str時段)}</span>
       ${obj活動.str副本網址 ? `<a href="${跳脫HTML(obj活動.str副本網址)}" target="_blank" rel="noopener">開啟整理副本</a>` : ''}</div>
     ${str報到}
+    ${obj活動.obj可做.bool整理 ? 產生卡片合併HTML_(obj活動) : ''}
     ${obj活動.obj可做.bool整理 ? `<details class="展開" data-報到展開="${str編號}" ${obj報到分頁.obj展開[obj活動.str活動ID] ? 'open' : ''} style="margin-top:0.75rem">
-      <summary><span class="按鈕 小">報到時段、合併來源、列印與補登</span></summary>
+      <summary><span class="按鈕 小">報到時段、列印與補登</span></summary>
       <div class="展開內容" id="場次區_${str編號}"><p class="載入中">正在讀取場次…</p></div>
     </details>` : ''}
   </li>`;
@@ -246,36 +291,6 @@ function 畫場次區(str活動ID) {
       <p class="小字" style="margin:0.2rem 0 0.4rem">寫法：名稱 空格 開始-結束（24 小時制），以「；」分隔；清空＝不分時段。改了之後請重新下載要用的場次。</p>
       <button type="submit" class="按鈕 小">儲存報到時段</button>
     </form>`;
-
-  // 名冊合併來源（v1.3.0 用齋；v1.4.0 加副會長回報；v1.4.1 只顯示精舍有設定的來源）
-  const o用齋 = obj.obj用齋 || { str餐別: '午齋', bool有登記表: false, str副會長回報: '合併', bool有回報表: false };
-  str += '<h4 style="margin:1rem 0 0.4rem;font-size:0.9375rem">名冊合併來源</h4>';
-  if (!o用齋.bool有回報表 && !o用齋.bool有登記表) {
-    str += '<p class="小字" style="margin:0">名冊只用報名資料。（精舍若設定副會長回報表或用齋登記表，這裡會出現合併選項。）</p>';
-  } else {
-    // 沒設定的來源用隱藏欄位帶目前值，儲存時不會改到
-    const str回報欄 = o用齋.bool有回報表
-      ? `<label class="小字">副會長回報
-          <select class="輸入" name="副會長回報" style="width:auto" aria-label="合併副會長回報">
-            ${['合併', '不合併'].map(function (s) { return `<option value="${s}" ${(o用齋.str副會長回報 || '合併') === s ? 'selected' : ''}>${s}</option>`; }).join('')}
-          </select></label>`
-      : `<input type="hidden" name="副會長回報" value="${跳脫HTML(o用齋.str副會長回報 || '合併')}">`;
-    const str用齋欄 = o用齋.bool有登記表
-      ? `<label class="小字">用齋登記
-          <select class="輸入" name="用齋" style="width:auto" aria-label="合併用齋">
-            ${['午齋', '藥石', '不合併'].map(function (s) { return `<option value="${s}" ${o用齋.str餐別 === s ? 'selected' : ''}>${s === '不合併' ? '不合併' : '合併' + s}</option>`; }).join('')}
-          </select></label>`
-      : `<input type="hidden" name="用齋" value="${跳脫HTML(o用齋.str餐別 || '午齋')}">`;
-    const arr說明 = [];
-    if (o用齋.bool有回報表) arr說明.push('副會長回報：出席但沒報名的人加入名冊，執事寫在「義工組別」、靠背椅＝需要坐椅子；不參加的人自動登記取消參加');
-    if (o用齋.bool有登記表) arr說明.push('用齋登記：所選餐別的義工加入名冊，組別寫在「義工組別」，備註寫「用齋：午齋×2」');
-    str += `<form data-報到表單="用齋" data-活動="${str編號}" class="工具列" style="flex-wrap:wrap;gap:0.5rem;align-items:center">
-        ${str回報欄}${str用齋欄}
-        <button type="submit" class="按鈕 小">儲存</button>
-      </form>
-      <p class="小字" style="margin:0.3rem 0 0">每場對內活動各自設定。下載名冊時，除了報名資料，再合併<strong>同一天</strong>的${arr說明.join('；')}。
-        整理副本的「下載場次名冊」視窗也可以選。改了之後請重新下載要用的場次。</p>`;
-  }
 
   // 場次名冊（v1.5.0）：不再列出每個場次；下載在整理副本，網頁只處理已下載的場次
   const arr已下載 = (obj.arr場次 || []).filter(function (o) { return o.str分頁名; });
@@ -582,13 +597,13 @@ function 產生用齋登記表HTML() {
   };
   return `<section class="卡片" id="卡片_用齋登記表">
     <h3>名冊合併來源</h3>
-    <p class="小字" style="margin:0 0 0.4rem">兩份都是<strong>選填</strong>：有設定哪一份，下載對內活動的場次名冊時就合併哪一份同一天的資料（每場活動可在場次區各自開關）；
-      都不設定時名冊只用報名資料。試算表要分享給部署平台的帳號（檢視者即可）；清空網址再按「更新並檢查」＝不再使用。</p>
+    <p class="小字" style="margin:0 0 0.4rem">兩份都是<strong>選填</strong>：有設定哪一份，下載對內活動的場次名冊時就合併哪一份同一天的資料；
+      都不設定時名冊只用報名資料。每場活動要不要合併，由承辦人在活動卡片的「名冊合併」選擇。試算表要分享給部署平台的帳號（檢視者即可）；清空網址再按「更新並檢查」＝不再使用。</p>
     <h4 style="margin:0.6rem 0 0;font-size:0.9375rem">副會長回報表 <span class="小字">（選填）</span></h4>
-    <p class="小字" style="margin:0.2rem 0 0">一場一頁；日期寫在分頁名稱（例如「11/14」）或欄名上方的標題列。出席的人加入名冊（座位、執事印在備註）；不參加的人自動登記取消參加。</p>
+    <p class="小字" style="margin:0.2rem 0 0">一場一頁；日期寫在分頁名稱（例如「11/14」）或欄名上方的標題列。出席的人加入名冊（執事寫在「義工組別」、靠背椅＝需要坐椅子）；不參加的人自動登記取消參加。</p>
     ${fn表單('副會長回報表', obj設定.str副會長回報表ID || '', '貼上副會長回報表網址（Google 試算表）')}
     <h4 style="margin:0.8rem 0 0;font-size:0.9375rem">用齋登記表 <span class="小字">（選填）</span></h4>
-    <p class="小字" style="margin:0.2rem 0 0">每頁第一列寫日期與餐別（例如「11/9(一)午齋」）。義工加入名冊，備註印「大寮・午齋×2」。</p>
+    <p class="小字" style="margin:0.2rem 0 0">每頁第一列寫日期與餐別（例如「11/9(一)午齋」）。義工加入名冊，組別寫在「義工組別」、備註寫「用齋：午齋×2」。</p>
     ${fn表單('用齋登記表', obj設定.str用齋登記表ID || '', '貼上用齋登記表網址（https://docs.google.com/spreadsheets/d/…）')}
   </section>`;
 }
@@ -605,11 +620,9 @@ async function 處理用齋登記表表單(el表單) {
   await 執行操作(el按鈕, async function () {
     const obj結果 = await 呼叫平台(str動作, { str網址: el表單.querySelector('[name=網址]').value });
     try { obj頁面狀態.obj編號設定 = await 呼叫平台('event.讀取編號設定'); } catch (err) { /* 卡片仍可顯示 */ }
+    // v1.6.0：重讀活動清單（含 obj合併來源），活動卡片的「名冊合併」選項跟著出現或消失
+    await 載入活動資料();
     畫法會報到();
-    // 已展開過的場次區重新讀取，合併來源選項才會跟著出現或消失（v1.4.1）
-    for (const str活動ID of Object.keys(obj報到分頁.obj場次 || {})) {
-      try { obj報到分頁.obj場次[str活動ID] = await 呼叫平台('event.列出場次', { str活動ID: str活動ID }); 畫場次區(str活動ID); } catch (err) { /* 下次展開再讀 */ }
-    }
     顯示並捲到訊息(fn位置(), 組合結果訊息(obj結果), true);
   }, function (str訊息) { 顯示並捲到訊息(fn位置(), str訊息); });
 }
@@ -627,8 +640,9 @@ async function 處理合併用齋表單(el表單) {
       str活動ID: str活動ID, str用齋: el表單.querySelector('[name=用齋]').value,
       str副會長回報: el表單.querySelector('[name=副會長回報]').value      // v1.4.0
     });
-    obj報到分頁.obj場次[str活動ID] = await 呼叫平台('event.列出場次', { str活動ID: str活動ID });
-    畫場次區(str活動ID);
+    // v1.6.0：選項在卡片上 → 重讀活動清單後重畫，確認畫面與儲存值一致
+    await 載入活動資料();
+    畫法會報到();
     顯示並捲到訊息(fn位置(), obj結果.str訊息, true);
   }, function (str訊息) { 顯示並捲到訊息(fn位置(), str訊息); });
 }
