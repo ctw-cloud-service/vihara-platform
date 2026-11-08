@@ -2,7 +2,9 @@
 // 檔案名稱：event/法會報到.js
 // 所屬模組：法會活動（event）
 // 所屬層級：前端／法會活動頁「四、法會報到」分頁
-// 檔案版本：v1.4.1（2026-11-08）
+// 檔案版本：v1.5.0（2026-11-08）
+//   v1.5.0：場次區不再列出每個場次：下載名冊改在整理副本「法會報到 → 下載場次名冊」勾選場次（一支香、共修、培訓都一樣，決策 BK）；
+//           網頁只留「已下載的場次」下拉選單＋列印報到表、補登、取消場次；合併來源說明改成新版名冊欄位
 //   v1.4.1：兩份合併來源都是選填：場次區只顯示精舍有設定的來源；都沒設定時只說明「名冊只用報名資料」
 //   v1.4.0：名冊合併三個來源：精舍設定加「副會長回報表」（卡片改名「名冊合併來源」）；場次區的合併設定加「副會長回報：合併／不合併」
 //   v1.3.0：合併用齋登記：精舍管理員設定「用齋登記表」連結（說明卡片下方）；每場活動選「合併用齋：午齋／藥石／不合併」（場次區）
@@ -31,6 +33,7 @@ const obj報到分頁 = {
   obj展開: {},        // 活動ID → true（「場次名冊…」展開中）
   obj補登: {},        // 活動ID → { str場次, obj元件 }
   obj列印: {},        // 活動ID → { str場次, str網址 }
+  obj選場次: {},      // 活動ID → 下拉選單目前選的已下載場次（v1.5.0）
   obj顯示QR: {}       // 活動ID → true
 };
 
@@ -111,7 +114,7 @@ function 畫法會報到() {
   let str = `<section class="卡片" id="卡片_報到說明">
     <h3>法會報到的步驟</h3>
     <ol class="明細">
-      <li><strong>下載場次名冊</strong>：展開活動的「場次名冊、報到時段、列印與補登」，選場次下載（一支香第一次下載時確認報到時段）。</li>
+      <li><strong>下載場次名冊</strong>：開啟活動的<strong>整理副本</strong>，選單「法會報到 → 下載場次名冊」勾選要整理的場次（可同時選擇要不要合併副會長回報、用齋登記；分時段的活動第一次下載時確認報到時段）。</li>
       <li><strong>開放報到</strong>：產生 6 位數報到碼。把<strong>報到網址</strong>（或 QR Code）和報到碼交給報到志工；志工輸入報到碼與本人姓名後，可以刷碼或用表格打勾報到。</li>
       <li><strong>紙本</strong>：按「列印報到表」印出，現場人工打勾；事後按「補登」照紙本打勾（報到方式記「紙本」）。</li>
       <li>報到結束按<strong>暫停報到</strong>，報到碼立即失效；報到紀錄都保留在整理副本的「報到紀錄」分頁。</li>
@@ -184,7 +187,7 @@ function 產生報到卡片HTML(obj活動) {
       ${obj活動.str副本網址 ? `<a href="${跳脫HTML(obj活動.str副本網址)}" target="_blank" rel="noopener">開啟整理副本</a>` : ''}</div>
     ${str報到}
     ${obj活動.obj可做.bool整理 ? `<details class="展開" data-報到展開="${str編號}" ${obj報到分頁.obj展開[obj活動.str活動ID] ? 'open' : ''} style="margin-top:0.75rem">
-      <summary><span class="按鈕 小">場次名冊、報到時段、列印與補登</span></summary>
+      <summary><span class="按鈕 小">報到時段、合併來源、列印與補登</span></summary>
       <div class="展開內容" id="場次區_${str編號}"><p class="載入中">正在讀取場次…</p></div>
     </details>` : ''}
   </li>`;
@@ -218,9 +221,9 @@ async function 載入場次區(str活動ID) {
 /**
  * ============================================================================
  * 函式名稱：畫場次區
- * 版本：v1.1.0（2026-11-07）　v1.1.0：取消場次／恢復場次、已取消標示
+ * 版本：v1.2.0（2026-11-08）　v1.2.0：不列出每個場次，改為已下載場次下拉選單（下載在整理副本）；v1.1.0：取消場次／恢復場次、已取消標示
  * ----------------------------------------------------------------------------
- * 用途：報到時段（可修改）、場次清單（下載名冊、列印報到表、補登）、列印連結、補登表格位置。
+ * 用途：報到時段（可修改）、名冊合併來源、已下載場次（列印報到表、補登、取消場次）、列印連結、補登表格位置。
  * 參數：str活動ID {string}
  * 傳回：無
  * ============================================================================
@@ -231,7 +234,6 @@ function 畫場次區(str活動ID) {
   if (!el || !obj) return;
   const str編號 = 跳脫HTML(str活動ID);
   const obj活動 = 找活動(str活動ID) || { obj可做: {} };
-  const bool可取消場次 = !!obj活動.obj可做.bool報到;      // 權限 event.開放報到
   const o時段 = obj.obj時段 || {};
   const str預填 = o時段.bool已設定 ? o時段.str報到時段 : (o時段.str建議時段 || '');
 
@@ -265,32 +267,36 @@ function 畫場次區(str活動ID) {
           </select></label>`
       : `<input type="hidden" name="用齋" value="${跳脫HTML(o用齋.str餐別 || '午齋')}">`;
     const arr說明 = [];
-    if (o用齋.bool有回報表) arr說明.push('副會長回報：出席但沒報名的人加入名冊（座位、執事印在備註），不參加的人自動登記取消參加');
-    if (o用齋.bool有登記表) arr說明.push('用齋登記：所選餐別的義工加入名冊，備註印「大寮・午齋×2」');
+    if (o用齋.bool有回報表) arr說明.push('副會長回報：出席但沒報名的人加入名冊，執事寫在「義工組別」、靠背椅＝需要坐椅子；不參加的人自動登記取消參加');
+    if (o用齋.bool有登記表) arr說明.push('用齋登記：所選餐別的義工加入名冊，組別寫在「義工組別」，備註寫「用齋：午齋×2」');
     str += `<form data-報到表單="用齋" data-活動="${str編號}" class="工具列" style="flex-wrap:wrap;gap:0.5rem;align-items:center">
         ${str回報欄}${str用齋欄}
         <button type="submit" class="按鈕 小">儲存</button>
       </form>
-      <p class="小字" style="margin:0.3rem 0 0">下載名冊時，除了報名資料，再合併<strong>同一天</strong>的${arr說明.join('；')}。改了之後請重新下載要用的場次。</p>`;
+      <p class="小字" style="margin:0.3rem 0 0">每場對內活動各自設定。下載名冊時，除了報名資料，再合併<strong>同一天</strong>的${arr說明.join('；')}。
+        整理副本的「下載場次名冊」視窗也可以選。改了之後請重新下載要用的場次。</p>`;
   }
 
-  str += '<h4 style="margin:1rem 0 0.4rem;font-size:0.9375rem">場次</h4>';
+  // 場次名冊（v1.5.0）：不再列出每個場次；下載在整理副本，網頁只處理已下載的場次
+  const arr已下載 = (obj.arr場次 || []).filter(function (o) { return o.str分頁名; });
+  str += '<h4 style="margin:1rem 0 0.4rem;font-size:0.9375rem">場次名冊</h4>';
+  str += `<p class="小字" style="margin:0 0 0.4rem">下載或重新下載名冊：開啟${obj活動.str副本網址 ? `<a href="${跳脫HTML(obj活動.str副本網址)}" target="_blank" rel="noopener">整理副本</a>` : '整理副本'}，
+    選單「法會報到 → 下載場次名冊」勾選要整理的場次。下載後按 <button type="button" class="按鈕 小" data-動作="重讀場次" data-活動="${str編號}">重新讀取</button></p>`;
   if ((obj.arr欄位提醒 || []).length > 0) str += `<p class="小字" style="color:#7A5F2B">${obj.arr欄位提醒.map(跳脫HTML).join('<br>')}</p>`;
-  str += `<table class="重複表"><thead><tr><th>日期</th><th>場次</th><th>名冊</th><th></th></tr></thead><tbody>${(obj.arr場次 || []).map(function (o) {
-    const str場 = 跳脫HTML(o.str場次);
-    const str取消 = o.obj取消 ? `<div class="小字" style="color:var(--色-警示);font-weight:700">${跳脫HTML(o.obj取消.str說明)}</div>` : '';
-    const str取消鈕 = bool可取消場次 && o.str分頁名
-      ? (o.obj取消 ? `<button type="button" class="按鈕 小" data-動作="恢復場次" data-活動="${str編號}" data-場次="${str場}">恢復場次</button>`
-        : `<button type="button" class="按鈕 小 警示" data-動作="取消場次" data-活動="${str編號}" data-場次="${str場}">取消場次</button>`) : '';
-    return `<tr><td>${跳脫HTML(o.str日期)}</td><td>${str場}<div class="小字">有填 ${Number(o.int有填筆數)} 筆</div>${str取消}</td>
-      <td>${o.str分頁名 ? `${跳脫HTML(o.str分頁名)}<div class="小字">${Number(o.int已下載人數)} 人</div>` : '<span class="小字">未下載</span>'}</td>
-      <td><div class="活動操作">
-        <button type="button" class="按鈕 小" data-動作="下載場次" data-活動="${str編號}" data-場次="${str場}">${o.str分頁名 ? '重新下載' : '下載名冊'}</button>
-        ${o.str分頁名 ? `<button type="button" class="按鈕 小" data-動作="列印報到表" data-活動="${str編號}" data-場次="${str場}">列印報到表</button>
-        <button type="button" class="按鈕 小 主要" data-動作="補登" data-活動="${str編號}" data-場次="${str場}">補登</button>` : ''}
-        ${str取消鈕}
-      </div></td></tr>`;
-  }).join('')}</tbody></table>`;
+  if (arr已下載.length === 0) {
+    str += '<p class="小字" style="margin:0">還沒有下載任何場次的名冊。</p>';
+  } else {
+    const str選 = 決定預設場次_(str活動ID, arr已下載);
+    str += `<div class="工具列" style="flex-wrap:wrap;gap:0.5rem;align-items:center">
+        <label class="小字">已下載的場次
+          <select class="輸入" data-場次選單="${str編號}" style="width:auto;max-width:100%" aria-label="已下載的場次">
+            ${arr已下載.map(function (o) {
+              return `<option value="${跳脫HTML(o.str場次)}" ${o.str場次 === str選 ? 'selected' : ''}>${跳脫HTML(o.str日期)}　${跳脫HTML(o.str場次)}（${Number(o.int已下載人數)} 人${o.obj取消 ? '，已取消' : ''}）</option>`;
+            }).join('')}
+          </select></label>
+      </div>
+      <div id="場次操作_${str編號}" style="margin-top:0.4rem">${產生場次操作HTML_(str活動ID, str選)}</div>`;
+  }
 
   const obj印 = obj報到分頁.obj列印[str活動ID];
   if (obj印) {
@@ -299,6 +305,60 @@ function 畫場次區(str活動ID) {
   }
   str += `<div id="補登區_${str編號}" style="margin-top:1rem"></div>`;
   el.innerHTML = str;
+}
+
+
+/**
+ * ============================================================================
+ * 函式名稱：決定預設場次_（內部使用）
+ * 版本：v1.0.0（2026-11-08）
+ * ----------------------------------------------------------------------------
+ * 用途：已下載場次下拉選單的預設值：之前選過的 → 正在補登的 → 今天或之後最近的一場 → 最後一場。
+ * 參數：str活動ID {string}；arr已下載 {Object[]} event.列出場次 的 arr場次 中已下載的
+ * 傳回：{string} 場次名稱
+ * ============================================================================
+ */
+function 決定預設場次_(str活動ID, arr已下載) {
+  const fn有 = function (s) { return s && arr已下載.some(function (o) { return o.str場次 === s; }); };
+  if (fn有(obj報到分頁.obj選場次[str活動ID])) return obj報到分頁.obj選場次[str活動ID];
+  const obj補 = obj報到分頁.obj補登[str活動ID];
+  if (obj補 && fn有(obj補.str場次)) return obj補.str場次;
+  const dat今天 = new Date();
+  const str今天 = `${dat今天.getFullYear()}-${('0' + (dat今天.getMonth() + 1)).slice(-2)}-${('0' + dat今天.getDate()).slice(-2)}`;
+  // 依日期排序後找今天或之後的第一場（舊版後端沒有 str日期值 時用清單順序）
+  const arr排 = arr已下載.slice().sort(function (a, b) { return String(a.str日期值 || '').localeCompare(String(b.str日期值 || '')); });
+  const o近 = arr排.filter(function (o) { return o.str日期值 && o.str日期值 >= str今天; })[0];
+  return (o近 || arr排[arr排.length - 1]).str場次;
+}
+
+
+/**
+ * ============================================================================
+ * 函式名稱：產生場次操作HTML_（內部使用）
+ * 版本：v1.0.0（2026-11-08）
+ * ----------------------------------------------------------------------------
+ * 用途：選定的已下載場次：名冊分頁與人數、取消說明，以及「列印報到表」「補登」「取消／恢復場次」按鈕。
+ * 參數：str活動ID {string}；str場次 {string}
+ * 傳回：{string} HTML
+ * ============================================================================
+ */
+function 產生場次操作HTML_(str活動ID, str場次) {
+  const obj = obj報到分頁.obj場次[str活動ID] || {};
+  const o = (obj.arr場次 || []).filter(function (x) { return x.str場次 === str場次; })[0];
+  if (!o) return '';
+  const obj活動 = 找活動(str活動ID) || { obj可做: {} };
+  const str編號 = 跳脫HTML(str活動ID);
+  const str場 = 跳脫HTML(o.str場次);
+  const str取消鈕 = obj活動.obj可做.bool報到        // 權限 event.開放報到
+    ? (o.obj取消 ? `<button type="button" class="按鈕 小" data-動作="恢復場次" data-活動="${str編號}" data-場次="${str場}">恢復場次</button>`
+      : `<button type="button" class="按鈕 小 警示" data-動作="取消場次" data-活動="${str編號}" data-場次="${str場}">取消場次</button>`) : '';
+  return `<div class="小字">名冊分頁「${跳脫HTML(o.str分頁名)}」${Number(o.int已下載人數)} 人（報名有填 ${Number(o.int有填筆數)} 筆）</div>
+    ${o.obj取消 ? `<div class="小字" style="color:var(--色-警示);font-weight:700">${跳脫HTML(o.obj取消.str說明)}</div>` : ''}
+    <div class="活動操作" style="margin-top:0.3rem">
+      <button type="button" class="按鈕 小" data-動作="列印報到表" data-活動="${str編號}" data-場次="${str場}">列印報到表</button>
+      <button type="button" class="按鈕 小 主要" data-動作="補登" data-活動="${str編號}" data-場次="${str場}">補登</button>
+      ${str取消鈕}
+    </div>`;
 }
 
 
@@ -432,24 +492,6 @@ async function 處理報到按鈕(el按鈕) {
       載入場次區(str活動ID);
       break;
 
-    case '下載場次': {
-      const str場次 = el按鈕.dataset.場次;
-      const obj場 = obj報到分頁.obj場次[str活動ID] || {};
-      const el時段 = 取得元素(`場次區_${str活動ID}`).querySelector('[name=報到時段]');
-      const obj參數 = { str活動ID: str活動ID, str場次: str場次 };
-      // 尚未設定時段時，連同畫面上的（系統建議或已修改的）時段一起儲存
-      if (obj場.obj時段 && !obj場.obj時段.bool已設定 && el時段) obj參數.str報到時段 = el時段.value;
-      await 執行操作(el按鈕, async function () {
-        const obj結果 = await 呼叫平台('event.下載場次名冊', obj參數);
-        if (obj參數.str報到時段 !== undefined) await 載入活動資料();
-        obj報到分頁.obj場次[str活動ID] = await 呼叫平台('event.列出場次', { str活動ID: str活動ID });
-        畫場次區(str活動ID);
-        if (obj報到分頁.obj補登[str活動ID]) 開始補登(str活動ID, obj報到分頁.obj補登[str活動ID].str場次);
-        顯示並捲到訊息(fn位置(), 組合結果訊息(obj結果), true);
-      }, function (str訊息) { 顯示並捲到訊息(fn位置(), str訊息); });
-      break;
-    }
-
     case '列印報到表': {
       const str場次 = el按鈕.dataset.場次;
       await 執行操作(el按鈕, async function () {
@@ -487,6 +529,7 @@ async function 處理報到按鈕(el按鈕) {
     }
 
     case '補登':
+      obj報到分頁.obj選場次[str活動ID] = el按鈕.dataset.場次;
       開始補登(str活動ID, el按鈕.dataset.場次);
       取得元素(`補登區_${str活動ID}`).scrollIntoView({ behavior: 'smooth', block: 'start' });
       break;
@@ -628,6 +671,15 @@ function 綁定法會報到事件(el清單) {
       delete obj報到分頁.obj補登[str活動ID];
     }
   }, true);
+  // v1.5.0：已下載場次下拉選單 → 只更新下方的按鈕區（補登表格不受影響）
+  el清單.addEventListener('change', function (e) {
+    const el = e.target;
+    if (!el.matches || !el.matches('select[data-場次選單]')) return;
+    const str活動ID = el.dataset.場次選單;
+    obj報到分頁.obj選場次[str活動ID] = el.value;
+    const el操作 = 取得元素(`場次操作_${str活動ID}`);
+    if (el操作) el操作.innerHTML = 產生場次操作HTML_(str活動ID, el.value);
+  });
   el清單.addEventListener('submit', function (e) {
     const el表單 = e.target.closest('form[data-報到表單]');
     if (!el表單) return;

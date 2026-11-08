@@ -2,7 +2,9 @@
  * ============================================================================
  * 檔案名稱：Code.gs（法會活動副本範本的綁定指令碼「副本工具」）
  * 所屬模組：法會活動（event）
- * 檔案版本：v3.5.0（2026-11-06）
+ * 檔案版本：v3.6.0（2026-11-08）
+ *   v3.6.0：下載場次名冊視窗加「名冊合併來源」：這場活動要不要合併副會長回報、用齋登記（午齋／藥石），
+ *           隨下載一起儲存（每場對內活動各自指定，決策 BK）；精舍沒設定的來源不顯示
  *   v3.5.0：「法會報到」加入「設定報到時段」「列印報到表」；下載場次名冊視窗顯示報到時段，
  *           尚未設定時帶入系統建議的時段（可修改），隨下載一起儲存
  *   v3.4.0：新增「法會報到 → 下載場次名冊」（對內活動：選一個場次，平台產生該場次的名冊分頁「名冊_月日日」）；
@@ -418,8 +420,39 @@ function 時段區塊內容(obj時段) {
 
 /**
  * ----------------------------------------------------------------------------
+ * 函式名稱：合併區塊內容
+ * 版本：v3.6.0（2026-11-08）
+ * 用途：下載場次名冊視窗的「名冊合併來源」區塊（決策 BK）：
+ *         精舍有設定副會長回報表 → 下拉「合併／不合併」（id="合併回報"）
+ *         精舍有設定用齋登記表   → 下拉「合併午齋／合併藥石／不合併」（id="合併用齋"）
+ *         兩份都沒設定           → 一行說明「名冊只用報名資料」
+ *       選的值隨下載送給平台，存成這場活動的設定（之後網頁與下次下載都沿用）。
+ * 參數：obj用齋 {Object} 平台回傳的 { str餐別, bool有登記表, str副會長回報, bool有回報表 }（舊版平台沒有時當成都沒設定）
+ * 傳回：{string} HTML
+ * ----------------------------------------------------------------------------
+ */
+function 合併區塊內容(obj用齋) {
+  const o = obj用齋 || {};
+  if (!o.bool有回報表 && !o.bool有登記表) {
+    return '<p style="color:#666;font-size:12px">名冊合併來源：只用報名資料（精舍設定副會長回報表或用齋登記表後，這裡可以選擇合併）。</p>';
+  }
+  const fn選單 = function (str編號, arr值, str目前, fn文字) {
+    return '<select id="' + str編號 + '">' + arr值.map(function (s) {
+      return '<option value="' + s + '"' + (s === str目前 ? ' selected' : '') + '>' + fn文字(s) + '</option>';
+    }).join('') + '</select>';
+  };
+  let str = '<div style="background:#f3efe6;padding:6px;margin-bottom:8px"><b>名冊合併來源</b>（這場活動）：';
+  if (o.bool有回報表) str += ' 副會長回報 ' + fn選單('合併回報', ['合併', '不合併'], o.str副會長回報 || '合併', function (s) { return s; });
+  if (o.bool有登記表) str += ' 用齋登記 ' + fn選單('合併用齋', ['午齋', '藥石', '不合併'], o.str餐別 || '午齋', function (s) { return s === '不合併' ? s : '合併' + s; });
+  str += '<br><span style="color:#666;font-size:12px">合併<b>同一天</b>的資料：出席或用齋但沒報名的人加入名冊；不參加的人自動登記取消參加；' +
+    '執事、組別寫在「義工組別」，坐椅子、用齋等寫在「備註」。選擇會存成這場活動的設定。</span></div>';
+  return str;
+}
+
+/**
+ * ----------------------------------------------------------------------------
  * 函式名稱：選單_下載場次名冊
- * 版本：v3.5.0（2026-11-06）　v3.5.0：視窗上方顯示報到時段（尚未設定時帶入建議，隨下載儲存）
+ * 版本：v3.6.0（2026-11-08）　v3.6.0：加「名冊合併來源」選擇；v3.5.0：視窗上方顯示報到時段（尚未設定時帶入建議，隨下載儲存）
  * 用途：
  *   ① 請平台列出「有效資料」的場次（欄名含日期的欄）與各場次筆數、已下載的名冊分頁、報到時段
  *   ② 顯示選擇視窗（一次選一個場次）；按「下載」後在視窗中呼叫 選單_執行下載場次名冊
@@ -436,6 +469,7 @@ function 選單_下載場次名冊() {
   const str格 = 'border-bottom:1px solid #ddd;padding:4px';
   let str內容 = '<div style="font-family:sans-serif;font-size:14px">';
   str內容 += 時段區塊內容(obj結果.obj時段);
+  str內容 += 合併區塊內容(obj結果.obj用齋);
   str內容 += '<p>「' + 安全文字(obj結果.str活動名稱) + '」共 ' + arr場次.length + ' 個場次。請選一個要下載的場次：</p>';
   str內容 += '<table style="border-collapse:collapse;width:100%">' +
     '<tr style="background:#f3efe6"><th></th><th style="text-align:left;padding:4px">日期</th><th style="text-align:left;padding:4px">場次</th>' +
@@ -459,25 +493,31 @@ function 選單_下載場次名冊() {
     'document.getElementById("btn下載").disabled=true;document.getElementById("結果").textContent="正在下載，請稍候…";' +
     'google.script.run.withSuccessHandler(function(s){document.getElementById("結果").textContent=s;document.getElementById("btn下載").disabled=false;})' +
     '.withFailureHandler(function(e){document.getElementById("結果").textContent="執行失敗："+(e&&e.message?e.message:e);document.getElementById("btn下載").disabled=false;})' +
-    '.選單_執行下載場次名冊(str,document.getElementById("時段")?document.getElementById("時段").value:null);}</script>';
+    '.選單_執行下載場次名冊(str,document.getElementById("時段")?document.getElementById("時段").value:null,' +
+    'document.getElementById("合併用齋")?document.getElementById("合併用齋").value:null,' +
+    'document.getElementById("合併回報")?document.getElementById("合併回報").value:null);}</script>';
   SpreadsheetApp.getUi().showModalDialog(
-    HtmlService.createHtmlOutput(str內容).setWidth(600).setHeight(520), '下載場次名冊');
+    HtmlService.createHtmlOutput(str內容).setWidth(600).setHeight(580), '下載場次名冊');
 }
 
 /**
  * ----------------------------------------------------------------------------
  * 函式名稱：選單_執行下載場次名冊
- * 版本：v3.5.0（2026-11-06）　v3.5.0：可一併送出報到時段
+ * 版本：v3.6.0（2026-11-08）　v3.6.0：可一併送出合併設定；v3.5.0：可一併送出報到時段
  * 用途：選擇視窗按「下載」時呼叫：請平台產生這個場次的名冊分頁，成功後切換到那一頁。
  * 參數：
  *   str場次       {string}      選擇的場次名稱
  *   str報到時段   {string|null} 視窗中確認的報到時段（尚未設定時才有；null＝沿用平台設定）
+ *   str用齋       {string|null} 合併用齋：午齋／藥石／不合併（精舍沒設定用齋登記表時 null）
+ *   str副會長回報 {string|null} 合併副會長回報：合併／不合併（精舍沒設定回報表時 null）
  * 傳回：{string} 顯示在視窗中的結果文字
  * ----------------------------------------------------------------------------
  */
-function 選單_執行下載場次名冊(str場次, str報到時段) {
+function 選單_執行下載場次名冊(str場次, str報到時段, str用齋, str副會長回報) {
   const obj參數 = { str場次: str場次 };
   if (typeof str報到時段 === 'string') obj參數.str報到時段 = str報到時段;
+  if (typeof str用齋 === 'string' && str用齋 !== '') obj參數.str用齋 = str用齋;              // v3.6.0
+  if (typeof str副會長回報 === 'string' && str副會長回報 !== '') obj參數.str副會長回報 = str副會長回報;
   const obj結果 = 呼叫系統('副本下載場次名冊', obj參數);
   const arr明細 = obj結果.arr明細 || [];
   if (obj結果.bool成功 && obj結果.str分頁名) {
