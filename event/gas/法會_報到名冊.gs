@@ -2,7 +2,9 @@
 // 檔案名稱：法會_報到名冊.gs
 // 所屬模組：法會活動（event）
 // 所屬層級：模組／服務層＋控制層
-// 檔案版本：v1.3.0（2026-11-07）
+// 檔案版本：v1.4.0（2026-11-08）
+//   v1.4.0：名冊合併三個來源（報名＋副會長回報＋用齋登記，決策 BA～BD）：名冊加「副會長回報」「回報座位」「回報執事」「不參加原因」四欄；
+//           副會長回報先合併（有法名）、再合併用齋；寫入後依回報自動取消參加／恢復參加（法會_副會長回報）
 //   v1.3.0：合併用齋登記（法會_用齋登記）：名冊加「用齋」「義工組別」「便當份數」三欄；
 //           同一天選定餐別的用齋義工已在名冊的補上三欄，沒報名的新增一列（算已報名）；列出場次附上合併用齋設定
 //   v1.2.1：網頁「列出場次」每個場次附上是否取消（obj取消，讀報到紀錄）
@@ -59,7 +61,8 @@ const obj報到名冊格式 = Object.freeze({
   // 名冊固定欄位與順序；其後接「有效資料」的其他欄位（帶入欄），再接承辦人自己加的欄位
   // v1.2.0：加「報名登記」；分時段的活動，各時段欄（欄名＝時段名稱）接在「報名登記」後面
   arr固定欄位: Object.freeze(['場次', '場次日期', '姓名', '法名', '學員編號', '報名內容', '報名登記', '提醒', '來源列', '報名時間',
-    '用齋', '義工組別', '便當份數']),   // v1.3.0：用齋三欄（沒有合併時空白）
+    '用齋', '義工組別', '便當份數',      // v1.3.0：用齋三欄（沒有合併時空白）
+    '副會長回報', '回報座位', '回報執事', '不參加原因']),   // v1.4.0：副會長回報四欄（加「回報」避免和承辦人自加的「座位」同名）
   str手動標記: '手動',                // 沒有時間戳記的列（承辦人手動加入），報名時間欄顯示這兩個字
   str場次日期格式: 'M/d',
   str報名時間格式: 'yyyy/M/d HH:mm',
@@ -556,7 +559,12 @@ function 轉為名冊物件_(obj列, arr時段) {
     // v1.3.0：用齋登記
     '用齋': obj列.obj用齋 ? obj列.obj用齋.str餐別 : '',
     '義工組別': obj列.obj用齋 ? obj列.obj用齋.str組別 : '',
-    '便當份數': obj列.obj用齋 ? obj列.obj用齋.int份數 : ''
+    '便當份數': obj列.obj用齋 ? obj列.obj用齋.int份數 : '',
+    // v1.4.0：副會長回報
+    '副會長回報': obj列.obj回報 ? obj列.obj回報.str出席 : '',
+    '回報座位': obj列.obj回報 ? obj列.obj回報.str座位 : '',
+    '回報執事': obj列.obj回報 ? obj列.obj回報.str執事 : '',
+    '不參加原因': obj列.obj回報 ? obj列.obj回報.str原因 : ''
   });
   // 時段欄：有報名標 ✓，沒有留空（承辦人可以手動補 ✓，列印報到表時照名冊的 ✓）
   arr分時段.forEach(function (o, i) { obj結果[o.str名稱] = arr報名序.indexOf(i) !== -1 ? obj報到表格式.str打勾符號 : ''; });
@@ -987,7 +995,9 @@ function 補上用齋義工法名_(str精舍代號, arr名冊列) {
  * }
  * ============================================================================
  */
-function 產生場次名冊_(obj副本, str精舍代號, str場次名稱, dat基準, arr時段, fn取得用齋) {
+function 產生場次名冊_(obj副本, str精舍代號, str場次名稱, dat基準, arr時段, any合併來源) {
+  // 合併來源（v1.4.0）：{ fn用齋(int月, int日), fn回報(int月, int日) }；舊寫法傳一個函式＝只有用齋
+  const obj來源 = typeof any合併來源 === 'function' ? { fn用齋: any合併來源 } : (any合併來源 || {});
   const cfg = obj報到名冊格式;
   const str選擇 = 取得單一場次參數_({ str場次: str場次名稱 });
 
@@ -1008,8 +1018,14 @@ function 產生場次名冊_(obj副本, str精舍代號, str場次名稱, dat基
   const int對不到時段 = 補上名冊時段_(obj整理.arr列, arr分時段);
   const int報名人數 = obj整理.arr列.length;
 
-  // ②-1 合併用齋登記（v1.3.0）：讀不到登記表不中斷下載，只在結果說明
-  const obj用齋 = typeof fn取得用齋 === 'function' ? fn取得用齋(obj場次.int月, obj場次.int日) : null;
+  // ②-1 合併副會長回報（v1.4.0，有法名，先合併）：讀不到不中斷下載
+  const obj回報 = typeof obj來源.fn回報 === 'function' ? obj來源.fn回報(obj場次.int月, obj場次.int日) : null;
+  const obj回報統計 = obj回報 && obj回報.arr人員.length > 0
+    ? 合併回報人員_(obj整理.arr列, obj回報.arr人員, { str場次: obj場次.str場次, dat日期: obj場次.dat日期 }, arr分時段)
+    : null;
+
+  // ②-2 合併用齋登記（v1.3.0）：讀不到登記表不中斷下載，只在結果說明
+  const obj用齋 = typeof obj來源.fn用齋 === 'function' ? obj來源.fn用齋(obj場次.int月, obj場次.int日) : null;
   const obj用齋統計 = obj用齋 && obj用齋.arr人員.length > 0
     ? 合併用齋人員_(obj整理.arr列, obj用齋.arr人員, { str場次: obj場次.str場次, dat日期: obj場次.dat日期 }, arr分時段)
     : null;
@@ -1041,9 +1057,27 @@ function 產生場次名冊_(obj副本, str精舍代號, str場次名稱, dat基
   const obj寫入 = 寫入名冊分頁_(obj副本, obj既有分頁, str新分頁名, str選擇, arr標題, arr新物件, arr時段欄名);
   const str分頁名 = obj寫入.obj分頁.getName();
 
+  // ⑤-1 依副會長回報自動取消參加／恢復參加（v1.4.0；失敗只提醒，名冊已寫好）
+  let obj取消統計 = null;
+  let str取消錯誤 = '';
+  if (obj回報 && typeof 同步回報取消參加_ === 'function') {
+    try { obj取消統計 = 同步回報取消參加_(obj副本, obj場次, arr新物件); } catch (err) { str取消錯誤 = String(err.message || err); }
+  }
+
   // ⑥ 結果說明
   const arr明細 = obj欄位.arr欄位提醒.slice();
   arr明細.push(`有填 ${obj整理.int有填筆數} 筆，同一人多筆已合併 ${obj整理.int去重筆數} 筆，報名 ${int報名人數} 人`);
+  if (obj回報統計) {
+    arr明細.push(`合併副會長回報（「${obj回報.arr分頁名.join('」「')}」）：出席 ${obj回報統計.int出席已在 + obj回報統計.int出席新增} 人`
+      + `（已報名 ${obj回報統計.int出席已在}、沒報名加入名冊 ${obj回報統計.int出席新增}）、不參加 ${obj回報統計.int不參加} 人`
+      + (obj回報統計.int待確認 > 0 ? `、待確認 ${obj回報統計.int待確認} 人（黃底）` : '')
+      + (obj取消統計 ? `；自動登記取消參加 ${obj取消統計.int取消} 人${obj取消統計.int恢復 > 0 ? `、恢復參加 ${obj取消統計.int恢復} 人` : ''}` : '')
+      + (obj回報統計.int略過不參加 > 0 ? `；沒報名又回報不參加的 ${obj回報統計.int略過不參加} 人不加入` : '')
+      + (obj回報統計.arr略過.length > 0 ? `；沒報名、待確認不加入：${obj回報統計.arr略過.slice(0, 15).join('、')}` : ''));
+    if (str取消錯誤) arr明細.push(`自動登記取消參加沒有完成：${str取消錯誤}（請到報到表格「未報到」手動勾「取消參加」）`);
+  } else if (obj回報 && obj回報.str說明) {
+    arr明細.push(obj回報.str說明);
+  }
   if (obj用齋統計) {
     const int份 = obj用齋.arr人員.reduce(function (n, o) { return n + o.int份數; }, 0);
     arr明細.push(`合併用齋登記（${obj用齋.str餐別}，「${obj用齋.arr分頁名.join('」「')}」分頁）：義工 ${obj用齋.arr人員.length} 人、便當 ${int份} 份；`
@@ -1073,7 +1107,9 @@ function 產生場次名冊_(obj副本, str精舍代號, str場次名稱, dat基
 
   return {
     str訊息: `已下載 ${obj場次.int月}/${obj場次.int日}「${str選擇}」的名冊：${obj整理.arr列.length} 人`
-      + (obj用齋統計 && obj用齋統計.int新增 > 0 ? `（含用齋義工 ${obj用齋統計.int新增} 人）` : '') + `（「${str分頁名}」分頁）。`,
+      + ((obj回報統計 && obj回報統計.int出席新增 > 0) || (obj用齋統計 && obj用齋統計.int新增 > 0)
+        ? `（含${[obj回報統計 && obj回報統計.int出席新增 > 0 ? `副會長回報 ${obj回報統計.int出席新增} 人` : '', obj用齋統計 && obj用齋統計.int新增 > 0 ? `用齋義工 ${obj用齋統計.int新增} 人` : ''].filter(Boolean).join('、')}）` : '')
+      + `（「${str分頁名}」分頁）。`,
     arr明細: arr明細,
     str分頁名: str分頁名,
     str備份名: obj寫入.str備份名,
@@ -1139,7 +1175,10 @@ function 處理下載場次名冊_(obj身分, obj主控台, obj活動值, str場
   // ② 產生
   const obj結果 = 以活動作業鎖執行_(obj身分.str精舍代號, str活動ID, '下載場次名冊', function () {
     return 產生場次名冊_(obj副本 || 開啟活動副本_(obj活動值), obj身分.str精舍代號, str場次名稱, 取得場次基準日_(obj活動值), arr時段,
-      function (int月, int日) { return 取得場次用齋人員_(obj主控台, obj活動值, int月, int日); });   // v1.3.0：合併用齋登記
+      {   // v1.4.0：合併來源（副會長回報、用齋登記）
+        fn回報: function (int月, int日) { return 取得場次回報人員_(obj主控台, obj活動值, int月, int日); },
+        fn用齋: function (int月, int日) { return 取得場次用齋人員_(obj主控台, obj活動值, int月, int日); }
+      });
   });
   obj結果.str報到時段 = 格式化時段設定_(arr時段);
   寫入操作日誌(obj身分, '下載場次名冊', `${str活動ID}：${obj結果.str訊息}`);
@@ -1191,7 +1230,12 @@ function 列出法會場次(obj工作階段, obj參數) {
   // 合併用齋設定（v1.3.0）
   let bool有登記表 = false;
   try { bool有登記表 = !!解析試算表ID_(讀取模組設定值_(obj.obj主控台, obj用齋格式.str設定項目, '').str值); } catch (err) { /* 讀不到設定：當成沒有 */ }
-  obj列出.obj用齋 = { str餐別: 取得活動用齋餐別_(obj.obj活動值), bool有登記表: bool有登記表 };
+  let bool有回報表 = false;
+  try { bool有回報表 = !!解析試算表ID_(讀取模組設定值_(obj.obj主控台, obj回報格式.str設定項目, '').str值); } catch (err) { /* 當成沒有 */ }
+  obj列出.obj用齋 = {
+    str餐別: 取得活動用齋餐別_(obj.obj活動值), bool有登記表: bool有登記表,
+    str副會長回報: 取得活動回報設定_(obj.obj活動值), bool有回報表: bool有回報表      // v1.4.0
+  };
   return Object.assign({ bool成功: true, str活動名稱: String(obj.obj活動值['活動名稱']).trim() }, obj列出,
     { obj時段: 整理時段資訊_(obj.obj活動值, obj列出.arr建議時段) });
 }
