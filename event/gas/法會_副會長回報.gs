@@ -2,7 +2,9 @@
 // 檔案名稱：法會_副會長回報.gs
 // 所屬模組：法會活動（event）
 // 所屬層級：模組／服務層＋控制層
-// 檔案版本：v1.0.0（2026-11-08）
+// 檔案版本：v1.1.0（2026-11-08）
+//   v1.1.0：欄位依欄名找（同義欄名也可：名字、出缺席、參加、執事…），欄位順序或名稱略有異動仍讀得到；
+//           讀「性別」；合併時記來源、補性別、執事併入「義工組別」、靠背椅＝「需要坐椅子：是」（決策 BF～BJ）
 // 用途說明：
 //   精舍的「副會長-法會回報」Google 試算表：副會長回報組員每場法會出席（V 椰墊／V 靠背椅／V 有執事）、
 //   不參加（X 不參加＋原因）或待確認（?）。下載對內活動的場次名冊時合併（決策 BA～BD）：
@@ -105,19 +107,23 @@ function 解析回報分頁_(str分頁名, arr值) {
   const arr列 = (arr值 || []).map(function (r) { return (r || []).map(function (v) { return String(v === null || v === undefined ? '' : v).trim(); }); });
   const obj結果 = { str分頁名: String(str分頁名 || ''), str標題: '', int月: 0, int日: 0, bool有欄名: false, arr人員: [] };
 
-  // ① 欄名列：同一列有「姓名」與「出席」
+  // ① 欄名列：同一列有姓名欄與出席欄（依欄名找，不依位置；v1.1.0 接受同義欄名）
+  const fn是姓名 = function (v) { return v === '姓名' || v === '名字' || v === '學員姓名'; };
+  const fn是出席 = function (v) { return v.indexOf('出席') !== -1 || v.indexOf('出缺') !== -1 || v === '參加' || v === '是否參加' || v === '回報'; };
   const int欄名列 = arr列.findIndex(function (r) {
-    return r.some(function (v) { return v.replace(/\s/g, '') === '姓名'; }) && r.some(function (v) { return v.indexOf('出席') !== -1; });
+    const arr = r.map(function (v) { return v.replace(/\s/g, ''); });
+    return arr.some(fn是姓名) && arr.some(fn是出席);
   });
   if (int欄名列 < 0) return obj結果;
   obj結果.bool有欄名 = true;
-  const arr欄名 = arr列[int欄名列].map(function (v) { return v.replace(/\s/g, ''); });
+  const arr欄名 = arr列[int欄名列].map(function (v) { return v.replace(/\s/g, '').replace(/[（(][^)）]*[)）]/g, ''); });
   const fn欄 = function (fn) { return arr欄名.findIndex(fn); };
-  const i姓名 = fn欄(function (v) { return v === '姓名'; });
+  const i姓名 = fn欄(fn是姓名);
   const i法名 = fn欄(function (v) { return v === '法名'; });
-  const i出席 = fn欄(function (v) { return v.indexOf('出席') !== -1; });
+  const i性別 = fn欄(function (v) { return v === '性別'; });
+  const i出席 = fn欄(fn是出席);
   const i原因 = fn欄(function (v) { return v.indexOf('原因') !== -1; });
-  const i備註 = fn欄(function (v) { return v === '備註'; });
+  const i備註 = fn欄(function (v) { return v.indexOf('備註') !== -1 || v.indexOf('執事') !== -1 || v === '說明'; });
 
   // ② 日期：欄名上方的標題列優先，其次分頁名稱
   obj結果.str標題 = arr列.slice(0, int欄名列).map(function (r) { return r.filter(Boolean).join(' '); }).filter(Boolean).join(' ');
@@ -140,6 +146,7 @@ function 解析回報分頁_(str分頁名, arr值) {
     const o = {
       str姓名: str姓名,
       str法名: i法名 >= 0 ? 正規化人名(r[i法名]) : '',
+      str性別: i性別 >= 0 ? 正規化性別_(r[i性別]) : '',     // v1.1.0（看不懂的如 #REF! 當空白）
       str出席: obj出席.str出席, str座位: obj出席.str座位, str執事: '', str原因: '', str備註: str備註, str提醒: ''
     };
     if (o.str出席 === '出席') o.str執事 = str備註;                       // 出席者的備註多為執事（梵唄、照客、福田…）
@@ -196,11 +203,20 @@ function 合併回報人員_(arr名冊列, arr回報, obj場次, arr時段) {
   const arr全部時段 = (arr時段 && arr時段.length >= 2) ? arr時段.map(function (t, i) { return i; }) : [];
   const obj統計 = { int出席已在: 0, int出席新增: 0, int不參加: 0, int待確認: 0, int略過不參加: 0, arr略過: [] };
 
+  // 補標準欄位（v1.1.0）：性別空白才補；執事併入義工組別；靠背椅＝需要坐椅子「是」
+  const fn補標準 = function (o, u) {
+    o.obj標準 = o.obj標準 || {};
+    if (!o.obj標準['性別'] && u.str性別) o.obj標準['性別'] = u.str性別;
+    if (u.str出席 === '出席' && u.str執事) o.obj標準['義工組別'] = 合併文字清單_(o.obj標準['義工組別'], u.str執事);
+    if (u.str座位 === '靠背椅') o.obj標準['需要坐椅子'] = '是';
+  };
   (arr回報 || []).forEach(function (u) {
     const obj回報 = { str出席: u.str出席, str座位: u.str座位, str執事: u.str執事, str原因: u.str原因 };
     if (u.str姓名 in obj名冊) {
       const o = arr名冊列[obj名冊[u.str姓名]];
       o.obj回報 = obj回報;
+      加入名冊來源_(o, obj報到名冊格式.obj來源.回報);
+      fn補標準(o, u);
       o.arr提醒 = o.arr提醒 || [];
       if (!o.str法名 && u.str法名) o.str法名 = u.str法名;
       else if (o.str法名 && u.str法名 && 正規化人名(o.str法名) !== u.str法名) o.arr提醒.push(`副會長回報的法名是「${u.str法名}」，請確認是否同一人`);
@@ -212,15 +228,17 @@ function 合併回報人員_(arr名冊列, arr回報, obj場次, arr時段) {
     }
     if (u.str出席 === '不參加') { obj統計.int略過不參加 += 1; return; }    // 沒報名又不參加：不必列名
     if (u.str出席 !== '出席') { obj統計.arr略過.push(`${u.str姓名}（${u.str出席}）`); return; }
-    arr名冊列.push({
+    const o新 = {
       str場次: obj場次.str場次, dat場次日期: obj場次.dat日期,
       str姓名: u.str姓名, str法名: u.str法名,
       str報名內容: `副會長回報出席${u.str執事 ? `（${u.str執事}）` : ''}`,
-      int來源列: '副會長回報', any報名時間: '',
-      arr提醒: u.str提醒 ? [u.str提醒] : [], obj帶入: {},
+      int來源列: 0, arr來源: [obj報到名冊格式.obj來源.回報], any報名時間: '',
+      arr提醒: u.str提醒 ? [u.str提醒] : [], obj帶入: {}, obj標準: {},
       arr報名序: arr全部時段.slice(),
-      obj回報: obj回報
-    });
+      obj回報: obj回報, bool合併新增: true
+    };
+    fn補標準(o新, u);
+    arr名冊列.push(o新);
     obj名冊[u.str姓名] = arr名冊列.length - 1;
     obj統計.int出席新增 += 1;
   });
@@ -346,7 +364,7 @@ function 同步回報取消參加_(obj副本, obj場次, arr名冊) {
   arr名冊.forEach(function (o) {
     const str鍵 = 取得人員鍵_(o['學員編號'], o['姓名']);
     if (!str鍵) return;
-    const bool不參加 = String(o['副會長回報'] || '').trim() === '不參加';
+    const bool不參加 = String(o['__回報出席'] || '').trim() === '不參加';     // v1.1.0：內部欄（備註已整合）
     const obj目前 = obj狀態.obj取消參加[str鍵];
     const bool已報到 = Object.keys(obj狀態.obj格[str鍵] || {}).length > 0;
     let str動作 = '';
@@ -358,7 +376,7 @@ function 同步回報取消參加_(obj副本, obj場次, arr名冊) {
       '學員編號': o['學員編號'] || '', '姓名': o['姓名'] || '', '法名': o['法名'] || '',
       '報名狀態': obj報到格式.obj報名狀態.已報名, '報到方式': '', '動作': str動作,
       '報到時間': new Date(), '報到人員': obj回報格式.str報到人員, '使用裝置': '名冊下載',
-      '備註': str動作 === obj報到格式.obj動作.取消參加 ? 整理取消原因_(obj回報格式.str原因前綴 + (o['不參加原因'] || '')) : '副會長回報已改'
+      '備註': str動作 === obj報到格式.obj動作.取消參加 ? 整理取消原因_(obj回報格式.str原因前綴 + (o['__不參加原因'] || '')) : '副會長回報已改'
     });
     if (str動作 === obj報到格式.obj動作.取消參加) obj統計.int取消 += 1; else obj統計.int恢復 += 1;
   });
