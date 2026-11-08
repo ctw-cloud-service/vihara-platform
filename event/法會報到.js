@@ -2,7 +2,8 @@
 // 檔案名稱：event/法會報到.js
 // 所屬模組：法會活動（event）
 // 所屬層級：前端／法會活動頁「四、法會報到」分頁
-// 檔案版本：v1.6.0（2026-11-08）
+// 檔案版本：v1.6.1（2026-11-08）
+//   v1.6.1：活動卡片版面：「名冊合併來源」框放在開放報到按鈕右側（窄螢幕自動換到下方），一支香、共修、培訓都一樣
 //   v1.6.0：「名冊合併來源」移到活動卡片上（開放報到按鈕下方），承辦人每場活動直接選要不要合併副會長回報、用齋登記，不必展開
 //   v1.5.0：場次區不再列出每個場次：下載名冊改在整理副本「法會報到 → 下載場次名冊」勾選場次（一支香、共修、培訓都一樣，決策 BK）；
 //           網頁只留「已下載的場次」下拉選單＋列印報到表、補登、取消場次；合併來源說明改成新版名冊欄位
@@ -145,7 +146,7 @@ function 畫法會報到() {
 /**
  * ============================================================================
  * 函式名稱：產生卡片合併HTML_（內部使用）
- * 版本：v1.0.0（2026-11-08）
+ * 版本：v1.1.0（2026-11-08）　v1.1.0：改為右側小框「名冊合併來源」（說明放在滑鼠提示）
  * ----------------------------------------------------------------------------
  * 用途：活動卡片上的「名冊合併」選項（承辦人每場活動自己決定，決策 BK）：
  *         精舍有設定副會長回報表 → 副會長回報：合併／不合併
@@ -162,12 +163,17 @@ function 產生卡片合併HTML_(obj活動) {
   const str編號 = 跳脫HTML(obj活動.str活動ID);
   const str用齋 = obj報到.str合併用齋 || '午齋';
   const str回報 = obj報到.str合併副會長回報 || '合併';
+  const str框 = 'flex:0 1 auto;max-width:100%;border:1px solid var(--色-線, #D5DCD8);border-radius:8px;padding:0.5rem 0.75rem';
+  const str說明 = '下載場次名冊時合併同一天的資料：出席或用齋但沒報名的人加入名冊，不參加的人自動登記取消參加。改了之後請重新下載要用的場次。';
   if (!o來源.bool有回報表 && !o來源.bool有登記表) {
-    return `<p class="小字" style="margin:0.6rem 0 0">名冊合併：只用報名資料${obj頁面狀態.bool可管理 ? '（可在上方「名冊合併來源」設定副會長回報表、用齋登記表）' : '（精舍尚未設定副會長回報表、用齋登記表）'}。</p>`;
+    return `<div class="合併框" style="${str框}" title="${str說明}">
+      <div style="font-weight:700;font-size:0.875rem">名冊合併來源</div>
+      <div class="小字">只用報名資料${obj頁面狀態.bool可管理 ? '（可在上方「名冊合併來源」卡片設定副會長回報表、用齋登記表）' : '（精舍尚未設定副會長回報表、用齋登記表）'}</div>
+    </div>`;
   }
   const fn選單 = function (str名, str標籤, arr值, str目前, fn文字) {
-    return `<label class="小字">${str標籤}
-      <select class="輸入" name="${str名}" style="width:auto" aria-label="${str標籤}">
+    return `<label class="小字" style="display:inline-flex;align-items:center;gap:0.25rem">${str標籤}
+      <select class="輸入" name="${str名}" style="width:auto;min-width:0;flex:none;font-size:0.875rem;padding:0.2rem 0.4rem" aria-label="${str標籤}">
         ${arr值.map(function (s) { return `<option value="${s}" ${s === str目前 ? 'selected' : ''}>${fn文字(s)}</option>`; }).join('')}
       </select></label>`;
   };
@@ -177,11 +183,13 @@ function 產生卡片合併HTML_(obj活動) {
   const str用齋欄 = o來源.bool有登記表
     ? fn選單('用齋', '用齋登記', ['午齋', '藥石', '不合併'], str用齋, function (s) { return s === '不合併' ? s : '合併' + s; })
     : `<input type="hidden" name="用齋" value="${跳脫HTML(str用齋)}">`;
-  return `<form data-報到表單="用齋" data-活動="${str編號}" class="工具列 合併選項" style="flex-wrap:wrap;gap:0.5rem;align-items:center;margin-top:0.6rem">
-      <strong class="小字">名冊合併</strong>${str回報欄}${str用齋欄}
-      <button type="submit" class="按鈕 小">儲存</button>
-    </form>
-    <p class="小字" style="margin:0.2rem 0 0">下載場次名冊時合併<strong>同一天</strong>的資料：出席或用齋但沒報名的人加入名冊，不參加的人自動登記取消參加。改了之後請重新下載要用的場次。</p>`;
+  return `<form data-報到表單="用齋" data-活動="${str編號}" class="合併框 合併選項" style="${str框}" title="${str說明}">
+      <div style="font-weight:700;font-size:0.875rem;margin-bottom:0.3rem">名冊合併來源</div>
+      <div style="display:flex;flex-wrap:wrap;gap:0.4rem 0.6rem;align-items:center">
+        ${str回報欄}${str用齋欄}
+        <button type="submit" class="按鈕 小">儲存</button>
+      </div>
+    </form>`;
 }
 
 
@@ -202,6 +210,7 @@ function 產生報到卡片HTML(obj活動) {
   const bool可開放 = obj活動.obj可做.bool報到;
 
   let str報到 = '';
+  let str提示 = '';          // v1.6.1：未開放時的說明（整列寬），按鈕與合併框並排在下一列
   if (bool報到中) {
     str報到 = `<div class="報到碼區">
       <div>報到碼 <span class="報到碼大字">${跳脫HTML(obj報到.str報到碼 || '（請洽開放報到的人）')}</span>
@@ -216,8 +225,8 @@ function 產生報到卡片HTML(obj活動) {
       <div class="QR區" id="QR_${str編號}"></div>
     </div>`;
   } else {
-    str報到 = `<p class="卡片提示">尚未開放報到。${bool可開放 ? '開放後會產生 6 位數報到碼，交給報到志工使用。' : '請洽有「開放報到」權限的承辦人或精舍管理員。'}</p>
-      ${bool可開放 ? `<div class="活動操作"><button type="button" class="按鈕 小 主要" data-動作="開放報到" data-活動="${str編號}">開放報到</button></div>` : ''}`;
+    str提示 = `<p class="卡片提示">尚未開放報到。${bool可開放 ? '開放後會產生 6 位數報到碼，交給報到志工使用。' : '請洽有「開放報到」權限的承辦人或精舍管理員。'}</p>`;
+    str報到 = bool可開放 ? `<div class="活動操作"><button type="button" class="按鈕 小 主要" data-動作="開放報到" data-活動="${str編號}">開放報到</button></div>` : '';
   }
 
   const str時段 = obj報到.str報到時段 ? `報到時段：${obj報到.str報到時段}` : '不分時段';
@@ -229,8 +238,11 @@ function 產生報到卡片HTML(obj活動) {
     </div>
     <div class="活動資訊"><span>${跳脫HTML(obj活動.str日期顯示 || '')}</span><span>${跳脫HTML(str時段)}</span>
       ${obj活動.str副本網址 ? `<a href="${跳脫HTML(obj活動.str副本網址)}" target="_blank" rel="noopener">開啟整理副本</a>` : ''}</div>
-    ${str報到}
-    ${obj活動.obj可做.bool整理 ? 產生卡片合併HTML_(obj活動) : ''}
+    ${str提示}
+    <div class="報到操作列" style="display:flex;flex-wrap:wrap;gap:0.75rem 1.5rem;align-items:flex-start;justify-content:space-between">
+      <div style="flex:1 1 16rem;min-width:0">${str報到}</div>
+      ${obj活動.obj可做.bool整理 ? 產生卡片合併HTML_(obj活動) : ''}
+    </div>
     ${obj活動.obj可做.bool整理 ? `<details class="展開" data-報到展開="${str編號}" ${obj報到分頁.obj展開[obj活動.str活動ID] ? 'open' : ''} style="margin-top:0.75rem">
       <summary><span class="按鈕 小">報到時段、列印與補登</span></summary>
       <div class="展開內容" id="場次區_${str編號}"><p class="載入中">正在讀取場次…</p></div>
