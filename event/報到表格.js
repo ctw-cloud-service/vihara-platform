@@ -2,7 +2,8 @@
 // 檔案名稱：event/報到表格.js
 // 所屬模組：法會活動（event）
 // 所屬層級：前端／共用元件
-// 檔案版本：v1.3.0（2026-11-07）
+// 檔案版本：v1.4.0（2026-11-10）
+//   v1.4.0：欄位依這場活動的「報到表範本」（資料的 arr欄位；舊版後端沒有時用標準：序號、姓名、法名、報名登記、時段、備註）（決策 BL）
 //   v1.3.0：備註欄加上用齋（名冊合併用齋登記時：大寮・午齋×2）
 //   v1.2.0：取消（決策 AS～AU）：
 //           · 「已報到」「未報到」畫面最右邊加「取消」勾選欄（可全選）：
@@ -244,16 +245,22 @@ function 建立報到表格(obj設定) {
     }
 
     // 表格
-    str += '<div class="表格捲動"><table><thead><tr><th>序號</th><th>姓名</th><th>法名</th><th class="登記">報名登記</th>';
-    arr時段.forEach(function (o) { str += `<th>${跳脫HTML(o.str名稱)}${o.str起迄 ? `<br><span class="小字">${跳脫HTML(o.str起迄)}</span>` : ''}</th>`; });
-    str += '<th>備註</th>';
+    // v1.4.0：表頭依報到表範本
+    str += '<div class="表格捲動"><table><thead><tr>';
+    取得範本欄位().forEach(function (c) {
+      if (c.str鍵 === '時段') {
+        arr時段.forEach(function (o) { str += `<th>${跳脫HTML(o.str名稱)}${o.str起迄 ? `<br><span class="小字">${跳脫HTML(o.str起迄)}</span>` : ''}</th>`; });
+      } else {
+        str += `<th${c.str鍵 === '報名登記' ? ' class="登記"' : ''}>${跳脫HTML(c.str欄名)}</th>`;
+      }
+    });
     if (bool取消欄) {
       const arr可 = (obj.arr列 || []).filter(function (o) { return 符合篩選(o) && 取消種類(o) !== '' && 取消種類(o) !== '恢復'; });
       const bool全選 = arr可.length > 0 && arr可.every(function (o) { return obj狀態.obj取消選[o.str鍵]; });
       str += `<th class="取消欄"><label>取消<br><input type="checkbox" data-報到="取消全選" ${bool全選 ? 'checked' : ''} ${arr可.length === 0 ? 'disabled' : ''} aria-label="全選要取消的報到"></label></th>`;
     }
     str += '</tr></thead><tbody>';
-    const int欄數 = 5 + arr時段.length + (bool取消欄 ? 1 : 0);
+    const int欄數 = 取得範本欄位().filter(function (c) { return c.str鍵 !== '時段'; }).length + arr時段.length + (bool取消欄 ? 1 : 0);
 
     let bool已畫現場標 = false;
     const arr顯示列 = (obj.arr列 || []).filter(function (o) { return 符合篩選(o); });
@@ -265,9 +272,8 @@ function 建立報到表格(obj設定) {
       const bool符合 = 符合搜尋(o);
       const str列類別 = [o.str提醒 ? '提醒列' : '', obj狀態.str篩選 === '未報到' && obj狀態.obj保留[o.str鍵] ? '保留列' : '',
         o.obj取消參加 ? '請假列' : ''].join(' ').trim();
-      str += `<tr data-鍵="${跳脫HTML(o.str鍵)}" class="${str列類別}" ${bool符合 ? '' : 'hidden'}>
-        <td>${Number(o.int序號)}</td><td class="姓名">${跳脫HTML(o.str姓名 || '（待補姓名）')}</td><td class="法名">${跳脫HTML(o.str法名)}</td>
-        <td class="登記">${跳脫HTML(String(o.str報名登記 || '').split('、').join('\n'))}</td>`;
+      str += `<tr data-鍵="${跳脫HTML(o.str鍵)}" class="${str列類別}" ${bool符合 ? '' : 'hidden'}>`;
+      let str時段格 = '';
       for (let j = 0; j < arr時段.length; j++) {
         const str格鍵 = fn格鍵(o.str鍵, j);
         const obj勾 = (o.obj勾 || {})[j];
@@ -275,11 +281,12 @@ function 建立報到表格(obj設定) {
         const str類別 = ['勾', obj勾 ? '已到' : '', obj狀態.obj寫入中[str格鍵] ? '寫入中' : '', obj狀態.obj失敗[str格鍵] ? '失敗' : ''].join(' ');
         const str說明 = obj狀態.obj失敗[str格鍵] ? `寫入失敗：${obj狀態.obj失敗[str格鍵]}（再點一次重試）`
           : (obj勾 ? `${obj勾.str時間} 報到（${obj勾.str方式 || ''}），再點一下可取消` : `${o.str姓名}「${arr時段[j].str名稱}」報到`);
-        str += `<td class="格${bool灰 ? ' 灰' : ''}"><button type="button" class="${str類別}" data-報到="勾" data-鍵="${跳脫HTML(o.str鍵)}" data-時段="${j}"
+        str時段格 += `<td class="格${bool灰 ? ' 灰' : ''}"><button type="button" class="${str類別}" data-報到="勾" data-鍵="${跳脫HTML(o.str鍵)}" data-時段="${j}"
           title="${跳脫HTML(str說明)}" aria-label="${跳脫HTML(str說明)}" aria-pressed="${obj勾 ? 'true' : 'false'}">${obj勾
           ? `✓ <span class="時間">${跳脫HTML(obj勾.str時間 || '')}</span>` : (obj狀態.obj失敗[str格鍵] ? '！' : '<span class="方框"></span>')}</button></td>`;
       }
-      str += `<td class="備註">${跳脫HTML([o.str提醒 || '', o.str用齋 || '', 取消參加說明(o)].filter(Boolean).join('；'))}</td>`;   // v1.3.0：用齋
+      // v1.4.0：依範本排欄；備註＝提醒、坐椅子・組別、用齋、取消參加
+      str += 範本列格HTML(o, str時段格, [o.str提醒 || '', o.str用齋 || '', 取消參加說明(o)].filter(Boolean).join('；'));
       if (bool取消欄) str += 取消格HTML(o);
       str += '</tr>';
     });
@@ -310,6 +317,38 @@ function 建立報到表格(obj設定) {
   }
 
   /**
+   * 這場活動報到表範本的欄位（v1.4.0）：資料的 arr欄位 [ { str鍵, str欄名 } ]；舊版後端沒有時用標準範本
+   */
+  function 取得範本欄位() {
+    const obj = obj狀態.obj資料 || {};
+    if (Array.isArray(obj.arr欄位) && obj.arr欄位.length > 0) return obj.arr欄位;
+    return [['序號', '序號'], ['姓名', '姓名'], ['法名', '法名'], ['報名登記', '報名登記'], ['時段', '時段'], ['備註', '備註']]
+      .map(function (a) { return { str鍵: a[0], str欄名: a[1] }; });
+  }
+
+  /**
+   * 一列的儲存格（不含取消欄），依範本排欄（v1.4.0）
+   *   o {Object} 一列資料；str時段格 {string} 已組好的時段格 HTML；str備註 {string} 備註欄文字
+   */
+  function 範本列格HTML(o, str時段格, str備註) {
+    return 取得範本欄位().map(function (c) {
+      switch (c.str鍵) {
+        case '時段': return str時段格;
+        case '序號': return `<td>${Number(o.int序號)}</td>`;
+        case '姓名': return `<td class="姓名">${跳脫HTML(o.str姓名 || '（待補姓名）')}</td>`;
+        case '法名': return `<td class="法名">${跳脫HTML(o.str法名 || '')}</td>`;
+        case '報名登記': return `<td class="登記">${跳脫HTML(String(o.str報名登記 || '').split('、').join('\n'))}</td>`;
+        case '備註': return `<td class="備註">${跳脫HTML(str備註)}</td>`;
+        case '學員編號': return `<td class="欄">${跳脫HTML(o.str學員編號 || (o.obj欄 || {})['學員編號'] || '')}</td>`;
+        default: {
+          const str值 = String((o.obj欄 || {})[c.str鍵] || '');
+          return `<td class="欄${c.str鍵 === '名冊備註' ? ' 備註' : ''}">${跳脫HTML(c.str鍵 === '名冊備註' ? str值.split('；').join('\n') : str值)}</td>`;
+        }
+      }
+    }).join('');
+  }
+
+  /**
    * 備註欄的取消參加說明（v1.2.0）
    */
   function 取消參加說明(o) {
@@ -337,14 +376,15 @@ function 建立報到表格(obj設定) {
     if (arr.length === 0) return '';
     let str = `<tr class="區隔 請假"><td colspan="${int欄數}">取消參加（請假）${arr.length} 人：勾「取消」欄後可按「恢復參加」；他們來了也可以直接打勾報到</td></tr>`;
     arr.forEach(function (o) {
-      str += `<tr data-鍵="${跳脫HTML(o.str鍵)}" class="請假列" ${符合搜尋(o) ? '' : 'hidden'}>
-        <td>${Number(o.int序號)}</td><td class="姓名">${跳脫HTML(o.str姓名)}</td><td class="法名">${跳脫HTML(o.str法名)}</td>
-        <td class="登記">${跳脫HTML(String(o.str報名登記 || '').split('、').join('\n'))}</td>`;
+      str += `<tr data-鍵="${跳脫HTML(o.str鍵)}" class="請假列" ${符合搜尋(o) ? '' : 'hidden'}>`;
+      let str時段格 = '';
       arr時段.forEach(function (t, j) {
-        str += `<td class="格"><button type="button" class="勾" data-報到="勾" data-鍵="${跳脫HTML(o.str鍵)}" data-時段="${j}"
+        str時段格 += `<td class="格"><button type="button" class="勾" data-報到="勾" data-鍵="${跳脫HTML(o.str鍵)}" data-時段="${j}"
           aria-label="${跳脫HTML(`${o.str姓名}「${t.str名稱}」報到`)}"><span class="方框"></span></button></td>`;
       });
-      str += `<td class="備註">${跳脫HTML([o.str用齋 || '', 取消參加說明(o) + (o.obj取消參加.str人員 ? `（${o.obj取消參加.str人員} ${o.obj取消參加.str時間}）` : '')].filter(Boolean).join('；'))}</td>${取消格HTML(o)}</tr>`;
+      str += 範本列格HTML(o, str時段格,
+        [o.str用齋 || '', 取消參加說明(o) + (o.obj取消參加.str人員 ? `（${o.obj取消參加.str人員} ${o.obj取消參加.str時間}）` : '')].filter(Boolean).join('；'));
+      str += `${取消格HTML(o)}</tr>`;
     });
     return str;
   }

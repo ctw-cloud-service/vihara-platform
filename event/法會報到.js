@@ -2,7 +2,9 @@
 // 檔案名稱：event/法會報到.js
 // 所屬模組：法會活動（event）
 // 所屬層級：前端／法會活動頁「四、法會報到」分頁
-// 檔案版本：v1.6.2（2026-11-08）
+// 檔案版本：v1.7.0（2026-11-10）
+//   v1.7.0：報到表範本（決策 BL）：精舍管理員「報到表範本」卡片（新增、修改、刪除、欄位排序）；
+//           承辦人在活動展開區選這場活動的範本；紙本報到表與報到表格依範本排欄
 //   v1.6.2：修正直接開啟（或重新整理）「四、法會報到」時，名冊合併來源卡片的連結空白：載入分頁時一併讀取精舍設定
 //   v1.6.1：活動卡片版面：「名冊合併來源」框放在開放報到按鈕右側（窄螢幕自動換到下方），一支香、共修、培訓都一樣
 //   v1.6.0：「名冊合併來源」移到活動卡片上（開放報到按鈕下方），承辦人每場活動直接選要不要合併副會長回報、用齋登記，不必展開
@@ -37,8 +39,27 @@ const obj報到分頁 = {
   obj補登: {},        // 活動ID → { str場次, obj元件 }
   obj列印: {},        // 活動ID → { str場次, str網址 }
   obj選場次: {},      // 活動ID → 下拉選單目前選的已下載場次（v1.5.0）
-  obj顯示QR: {}       // 活動ID → true
+  obj顯示QR: {},      // 活動ID → true
+  obj範本編輯: null   // 正在編輯的報到表範本 { str原名稱, str名稱, arr欄位 }（v1.7.0；null＝沒有在編輯）
 };
+
+// 報到表範本可選的標準欄位（與後端 法會_報到表範本.gs obj欄位定義 相同；鍵 → 顯示名稱、說明）
+const arr範本可選欄位_ = [
+  { str鍵: '序號', str欄名: '序號', str說明: '1、2、3…' },
+  { str鍵: '姓名', str欄名: '姓名', str說明: '必要' },
+  { str鍵: '法名', str欄名: '法名', str說明: '' },
+  { str鍵: '學員編號', str欄名: '學員編號', str說明: '' },
+  { str鍵: '性別', str欄名: '性別', str說明: '' },
+  { str鍵: '報名內容', str欄名: '報名內容', str說明: '報名表場次欄的內容' },
+  { str鍵: '報名登記', str欄名: '報名登記', str說明: '全部時段／報了哪幾個時段' },
+  { str鍵: '義工組別', str欄名: '義工組別', str說明: '執事、組別' },
+  { str鍵: '需要坐椅子', str欄名: '坐椅子', str說明: '是／否' },
+  { str鍵: '來源列', str欄名: '來源', str說明: '表單報名、副會長回報、用齋登記' },
+  { str鍵: '報名時間', str欄名: '報名時間', str說明: '' },
+  { str鍵: '時段', str欄名: '時段', str說明: '必要；報到打勾欄' },
+  { str鍵: '備註', str欄名: '備註', str說明: '提醒簡稱、坐椅子・組別、用齋' },
+  { str鍵: '名冊備註', str欄名: '備註（全文）', str說明: '名冊「備註」欄全文' }
+];
 
 // QR Code 程式庫（第一次按「顯示 QR Code」時才載入）
 const strQR程式庫網址_ = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
@@ -130,7 +151,7 @@ function 畫法會報到() {
     <p class="小字" style="margin:0.5rem 0 0">每場活動有自己的<strong>報到連結</strong>（網址含報到碼）：志工開啟後只要輸入本人姓名。同一天有多場活動時，各場的連結分開給；
       同一台裝置開哪個連結就進哪一場，可以開兩個分頁同時報到。</p>
   </section>`;
-  if (obj頁面狀態.bool可管理) str += 產生用齋登記表HTML();
+  if (obj頁面狀態.bool可管理) str += 產生用齋登記表HTML() + 產生報到表範本卡片HTML_();   // v1.7.0
 
   str += arr.length === 0
     ? `<p class="空白提示">${obj頁面狀態.arr活動.some(function (o) { return o.str活動類型 === '對內' && !是否已停止(o.str活動狀態); })
@@ -250,7 +271,7 @@ function 產生報到卡片HTML(obj活動) {
       ${obj活動.obj可做.bool整理 ? 產生卡片合併HTML_(obj活動) : ''}
     </div>
     ${obj活動.obj可做.bool整理 ? `<details class="展開" data-報到展開="${str編號}" ${obj報到分頁.obj展開[obj活動.str活動ID] ? 'open' : ''} style="margin-top:0.75rem">
-      <summary><span class="按鈕 小">報到時段、列印與補登</span></summary>
+      <summary><span class="按鈕 小">報到時段、報到表範本、列印與補登</span></summary>
       <div class="展開內容" id="場次區_${str編號}"><p class="載入中">正在讀取場次…</p></div>
     </details>` : ''}
   </li>`;
@@ -309,6 +330,9 @@ function 畫場次區(str活動ID) {
       <p class="小字" style="margin:0.2rem 0 0.4rem">寫法：名稱 空格 開始-結束（24 小時制），以「；」分隔；清空＝不分時段。改了之後請重新下載要用的場次。</p>
       <button type="submit" class="按鈕 小">儲存報到時段</button>
     </form>`;
+
+  // 報到表範本（v1.7.0）：這場活動的紙本報到表與報到表格要用哪個範本
+  str += 產生活動範本選擇HTML_(obj活動);
 
   // 場次名冊（v1.5.0）：不再列出每個場次；下載在整理副本，網頁只處理已下載的場次
   const arr已下載 = (obj.arr場次 || []).filter(function (o) { return o.str分頁名; });
@@ -593,6 +617,241 @@ async function 處理報到按鈕(el按鈕) {
  */
 /**
  * ============================================================================
+ * 函式名稱：範本欄位顯示名_（內部使用）
+ * 版本：v1.0.0（2026-11-10）
+ * ----------------------------------------------------------------------------
+ * 用途：範本欄位鍵 → 畫面上的名稱（標準欄用 arr範本可選欄位_ 的名稱；其他名冊欄照原名）。
+ * 參數：str鍵 {string}
+ * 傳回：{string}
+ * ============================================================================
+ */
+function 範本欄位顯示名_(str鍵) {
+  const o = arr範本可選欄位_.filter(function (x) { return x.str鍵 === str鍵; })[0];
+  return o ? o.str欄名 : str鍵;
+}
+
+
+/**
+ * ============================================================================
+ * 函式名稱：產生報到表範本卡片HTML_（內部使用）
+ * 版本：v1.0.0（2026-11-10）
+ * ----------------------------------------------------------------------------
+ * 用途：精舍管理員的「報到表範本」卡片（決策 BL）：列出內建與自訂範本；自訂範本可修改、刪除；
+ *       「＋ 新增範本」打開編輯區（欄位可加入、上移、下移、移除）。
+ * 傳回：{string} HTML
+ * ============================================================================
+ */
+function 產生報到表範本卡片HTML_() {
+  const arr = obj頁面狀態.arr報到表範本 || [];
+  const str清單 = arr.map(function (o) {
+    const str名 = 跳脫HTML(o.str名稱);
+    return `<li class="範本列" style="display:flex;flex-wrap:wrap;gap:0.4rem 0.8rem;align-items:center;padding:0.35rem 0;border-bottom:1px solid var(--色-線)">
+      <strong style="min-width:5em">${str名}</strong>
+      <span class="小字" style="flex:1 1 16rem">${o.arr欄位.map(function (k) { return 跳脫HTML(範本欄位顯示名_(k)); }).join('｜')}</span>
+      ${o.bool內建 ? '<span class="小字">內建</span>'
+        : `<button type="button" class="按鈕 小" data-範本="編輯" data-名稱="${str名}">修改</button>
+           <button type="button" class="按鈕 小 警示" data-範本="刪除" data-名稱="${str名}">刪除</button>`}
+    </li>`;
+  }).join('');
+  return `<section class="卡片" id="卡片_報到表範本">
+    <h3>報到表範本</h3>
+    <p class="小字" style="margin:0 0 0.4rem">事先設定紙本報到表（和網頁報到表格）要印哪些欄、順序如何；承辦人在每場活動選一個範本套用。
+      一定要有「姓名」和「時段」（打勾欄，分時段的活動會展開成每個時段一欄）；欄寬由系統自動分配。</p>
+    <ul style="list-style:none;margin:0;padding:0">${str清單}</ul>
+    <div id="範本編輯區" style="margin-top:0.6rem">${產生範本編輯HTML_()}</div>
+  </section>`;
+}
+
+
+/**
+ * ============================================================================
+ * 函式名稱：產生範本編輯HTML_（內部使用）
+ * 版本：v1.0.0（2026-11-10）
+ * ----------------------------------------------------------------------------
+ * 用途：範本編輯區：沒有在編輯時只有「＋ 新增範本」；編輯中顯示名稱、欄位清單（上移／下移／移除）、
+ *       加入標準欄位或名冊其他欄位、印出來的樣子、儲存與取消。
+ * 傳回：{string} HTML
+ * ============================================================================
+ */
+function 產生範本編輯HTML_() {
+  const obj = obj報到分頁.obj範本編輯;
+  if (!obj) return '<button type="button" class="按鈕 小 主要" data-範本="新增">＋ 新增範本</button>';
+  const arr可加 = arr範本可選欄位_.filter(function (o) { return obj.arr欄位.indexOf(o.str鍵) === -1; });
+  const str欄位 = obj.arr欄位.length === 0 ? '<li class="小字">還沒有欄位，請從下方加入。</li>'
+    : obj.arr欄位.map(function (k, i) {
+      return `<li style="display:flex;align-items:center;gap:0.4rem;padding:0.15rem 0">
+        <span style="min-width:1.6em;text-align:right" class="小字">${i + 1}.</span>
+        <span style="flex:1">${跳脫HTML(範本欄位顯示名_(k))}${k !== 範本欄位顯示名_(k) ? ` <span class="小字">（${跳脫HTML(k)}）</span>` : ''}</span>
+        <button type="button" class="按鈕 小" data-範本="上移" data-序="${i}" ${i === 0 ? 'disabled' : ''} aria-label="${跳脫HTML(k)} 上移">↑</button>
+        <button type="button" class="按鈕 小" data-範本="下移" data-序="${i}" ${i === obj.arr欄位.length - 1 ? 'disabled' : ''} aria-label="${跳脫HTML(k)} 下移">↓</button>
+        <button type="button" class="按鈕 小" data-範本="移除" data-序="${i}" aria-label="移除 ${跳脫HTML(k)}">✕</button>
+      </li>`;
+    }).join('');
+  return `<div class="範本編輯" style="border:1px solid var(--色-線);border-radius:8px;padding:0.6rem 0.8rem">
+    <h4 style="margin:0 0 0.4rem;font-size:0.9375rem">${obj.str原名稱 ? `修改範本「${跳脫HTML(obj.str原名稱)}」` : '新增範本'}</h4>
+    <label class="欄位" style="max-width:20rem">範本名稱<input class="輸入" id="範本名稱" maxlength="20" value="${跳脫HTML(obj.str名稱)}" placeholder="例如：義工版" autocomplete="off"></label>
+    <p class="小字" style="margin:0.6rem 0 0.2rem">欄位（由左到右）：</p>
+    <ol style="list-style:none;margin:0;padding:0;max-width:28rem">${str欄位}</ol>
+    <div class="工具列" style="flex-wrap:wrap;gap:0.4rem;align-items:center;margin-top:0.5rem">
+      <select class="輸入" id="範本加入欄" style="width:auto" aria-label="加入標準欄位">
+        ${arr可加.map(function (o) { return `<option value="${跳脫HTML(o.str鍵)}">${跳脫HTML(o.str欄名)}${o.str說明 ? `（${跳脫HTML(o.str說明)}）` : ''}</option>`; }).join('')}
+      </select>
+      <button type="button" class="按鈕 小" data-範本="加入" ${arr可加.length === 0 ? 'disabled' : ''}>加入</button>
+      <input class="輸入" id="範本其他欄" style="width:12rem" maxlength="20" placeholder="名冊其他欄名，例如：班別" autocomplete="off" aria-label="名冊其他欄名">
+      <button type="button" class="按鈕 小" data-範本="加入其他">加入</button>
+    </div>
+    <p class="小字" style="margin:0.4rem 0 0">名冊其他欄：報名表帶入的欄（班別…）或承辦人在名冊自加的欄（座位…），欄名要和名冊相同；那場名冊沒有這欄時印空白。</p>
+    <p class="小字" style="margin:0.4rem 0 0">印出來：${obj.arr欄位.map(function (k) { return 跳脫HTML(k === '時段' ? '［時段打勾欄］' : 範本欄位顯示名_(k)); }).join('｜') || '（還沒有欄位）'}</p>
+    <div class="活動操作" style="margin-top:0.5rem">
+      <button type="button" class="按鈕 小 主要" data-範本="儲存">儲存範本</button>
+      <button type="button" class="按鈕 小" data-範本="取消">取消</button>
+    </div>
+  </div>`;
+}
+
+
+/**
+ * ============================================================================
+ * 函式名稱：處理範本按鈕_（內部使用）
+ * 版本：v1.0.0（2026-11-10）
+ * ----------------------------------------------------------------------------
+ * 用途：報到表範本卡片的按鈕（data-範本）：新增、修改、刪除、欄位加入／上移／下移／移除、儲存、取消。
+ *       欄位調整只改畫面（obj報到分頁.obj範本編輯），按「儲存範本」才送 event.儲存報到表範本。
+ * 參數：el按鈕 {HTMLElement}
+ * 傳回：{Promise<void>}
+ * ============================================================================
+ */
+async function 處理範本按鈕_(el按鈕) {
+  const fn位置 = function () { return 取得元素('卡片_報到表範本'); };
+  const obj = obj報到分頁.obj範本編輯;
+  // 重畫前先記下名稱欄目前的文字
+  const el名 = 取得元素('範本名稱');
+  if (obj && el名) obj.str名稱 = el名.value;
+  const fn重畫 = function () { const el = 取得元素('範本編輯區'); if (el) el.innerHTML = 產生範本編輯HTML_(); };
+  const int序 = Number(el按鈕.dataset.序);
+  顯示區塊訊息(fn位置(), '');
+
+  switch (el按鈕.dataset.範本) {
+    case '新增':
+      obj報到分頁.obj範本編輯 = { str原名稱: '', str名稱: '', arr欄位: ['序號', '姓名', '法名', '時段', '備註'] };
+      fn重畫();
+      break;
+    case '編輯': {
+      const o = (obj頁面狀態.arr報到表範本 || []).filter(function (x) { return x.str名稱 === el按鈕.dataset.名稱; })[0];
+      if (!o) return;
+      obj報到分頁.obj範本編輯 = { str原名稱: o.str名稱, str名稱: o.str名稱, arr欄位: o.arr欄位.slice() };
+      fn重畫();
+      取得元素('範本編輯區').scrollIntoView({ block: 'nearest' });
+      break;
+    }
+    case '上移':
+    case '下移': {
+      const int對 = el按鈕.dataset.範本 === '上移' ? int序 - 1 : int序 + 1;
+      if (!obj || int對 < 0 || int對 >= obj.arr欄位.length) return;
+      const tmp = obj.arr欄位[int序]; obj.arr欄位[int序] = obj.arr欄位[int對]; obj.arr欄位[int對] = tmp;
+      fn重畫();
+      break;
+    }
+    case '移除':
+      if (obj) { obj.arr欄位.splice(int序, 1); fn重畫(); }
+      break;
+    case '加入': {
+      const str鍵 = (取得元素('範本加入欄') || {}).value;
+      if (obj && str鍵 && obj.arr欄位.indexOf(str鍵) === -1) { obj.arr欄位.push(str鍵); fn重畫(); }
+      break;
+    }
+    case '加入其他': {
+      const str欄 = ((取得元素('範本其他欄') || {}).value || '').trim();
+      if (!obj) return;
+      if (str欄 === '') { 顯示並捲到訊息(fn位置(), '請先輸入名冊的欄名，例如「班別」。'); return; }
+      if (obj.arr欄位.indexOf(str欄) !== -1) { 顯示並捲到訊息(fn位置(), `已經有「${str欄}」欄。`); return; }
+      obj.arr欄位.push(str欄);
+      fn重畫();
+      break;
+    }
+    case '取消':
+      obj報到分頁.obj範本編輯 = null;
+      fn重畫();
+      break;
+    case '儲存':
+      if (!obj) return;
+      await 執行操作(el按鈕, async function () {
+        const obj結果 = await 呼叫平台('event.儲存報到表範本', { str原名稱: obj.str原名稱, str名稱: obj.str名稱, arr欄位: obj.arr欄位 });
+        obj報到分頁.obj範本編輯 = null;
+        await 載入活動資料();
+        畫法會報到();
+        顯示並捲到訊息(fn位置(), 組合結果訊息(obj結果), true);
+      }, function (str訊息) { 顯示並捲到訊息(fn位置(), str訊息); });
+      break;
+    case '刪除': {
+      const str名稱 = el按鈕.dataset.名稱;
+      const bool = await 確認對話框(`刪除報到表範本「${str名稱}」？`,
+        '<p>用這個範本的活動會改回「標準」範本。已印好的報到表不受影響。</p>', '刪除');
+      if (!bool) return;
+      await 執行操作(el按鈕, async function () {
+        const obj結果 = await 呼叫平台('event.刪除報到表範本', { str名稱: str名稱 });
+        if (obj報到分頁.obj範本編輯 && obj報到分頁.obj範本編輯.str原名稱 === str名稱) obj報到分頁.obj範本編輯 = null;
+        await 載入活動資料();
+        畫法會報到();
+        顯示並捲到訊息(fn位置(), obj結果.str訊息, true);
+      }, function (str訊息) { 顯示並捲到訊息(fn位置(), str訊息); });
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+
+/**
+ * ============================================================================
+ * 函式名稱：產生活動範本選擇HTML_（內部使用）
+ * 版本：v1.0.0（2026-11-10）
+ * ----------------------------------------------------------------------------
+ * 用途：活動展開區的「報到表範本」：下拉選範本＋儲存，下面列出這個範本印哪些欄（決策 BL）。
+ * 參數：obj活動 {Object}
+ * 傳回：{string} HTML
+ * ============================================================================
+ */
+function 產生活動範本選擇HTML_(obj活動) {
+  const arr = obj頁面狀態.arr報到表範本 || [];
+  if (arr.length === 0) return '';      // 舊版後端：沒有範本資料
+  const str編號 = 跳脫HTML(obj活動.str活動ID);
+  const str目前 = (obj活動.obj報到 || {}).str報到表範本 || '標準';
+  const o目前 = arr.filter(function (o) { return o.str名稱 === str目前; })[0];
+  return `<h4 style="margin:1rem 0 0.4rem;font-size:0.9375rem">報到表範本</h4>
+    <form data-報到表單="範本" data-活動="${str編號}" class="工具列" style="flex-wrap:wrap;gap:0.5rem;align-items:center">
+      <select class="輸入" name="範本" style="width:auto" aria-label="報到表範本">
+        ${arr.map(function (o) { return `<option value="${跳脫HTML(o.str名稱)}" ${o.str名稱 === str目前 ? 'selected' : ''}>${跳脫HTML(o.str名稱)}</option>`; }).join('')}
+        ${o目前 ? '' : `<option value="標準" selected>（原範本「${跳脫HTML(str目前)}」已不存在，改用標準）</option>`}
+      </select>
+      <button type="submit" class="按鈕 小">儲存</button>
+    </form>
+    <p class="小字" style="margin:0.3rem 0 0">印出來：${o目前 ? o目前.arr欄位.map(function (k) { return 跳脫HTML(k === '時段' ? '［時段打勾欄］' : 範本欄位顯示名_(k)); }).join('｜') : '標準範本'}。
+      紙本報到表與報到表格都用這個範本；改了之後重新列印報到表就會套用。${obj頁面狀態.bool可管理 ? '範本在上方「報到表範本」卡片設定。' : ''}</p>`;
+}
+
+
+/**
+ * 活動範本表單：送出 event.設定活動報到表範本（v1.7.0）
+ */
+async function 處理活動範本表單_(el表單) {
+  const str活動ID = el表單.dataset.活動;
+  const fn位置 = function () { return 取得元素(`報到卡_${str活動ID}`); };
+  const el按鈕 = el表單.querySelector('button[type=submit]');
+  await 執行操作(el按鈕, async function () {
+    const obj結果 = await 呼叫平台('event.設定活動報到表範本', { str活動ID: str活動ID, str範本: el表單.querySelector('[name=範本]').value });
+    await 載入活動資料();
+    畫法會報到();
+    // 補登表格正開著時重新讀取，欄位跟著換
+    if (obj報到分頁.obj補登[str活動ID]) 開始補登(str活動ID, obj報到分頁.obj補登[str活動ID].str場次);
+    顯示並捲到訊息(fn位置(), obj結果.str訊息, true);
+  }, function (str訊息) { 顯示並捲到訊息(fn位置(), str訊息); });
+}
+
+
+/**
+ * ============================================================================
  * 函式名稱：產生用齋登記表HTML
  * 版本：v1.1.0（2026-11-08）　v1.1.0：改為「名冊合併來源」卡片，加副會長回報表
  * ----------------------------------------------------------------------------
@@ -703,6 +962,21 @@ function 綁定法會報到事件(el清單) {
       delete obj報到分頁.obj補登[str活動ID];
     }
   }, true);
+  // v1.7.0：報到表範本卡片的按鈕（data-範本，不經 event.js 的 data-動作 委派）
+  el清單.addEventListener('click', function (e) {
+    const el = e.target.closest ? e.target.closest('button[data-範本]') : null;
+    if (!el || el.disabled) return;
+    e.preventDefault();
+    處理範本按鈕_(el);
+  });
+  // 名冊其他欄輸入框按 Enter＝加入
+  el清單.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target && e.target.id === '範本其他欄') {
+      e.preventDefault();
+      const el = document.querySelector('button[data-範本="加入其他"]');
+      if (el) 處理範本按鈕_(el);
+    }
+  });
   // v1.5.0：已下載場次下拉選單 → 只更新下方的按鈕區（補登表格不受影響）
   el清單.addEventListener('change', function (e) {
     const el = e.target;
@@ -718,6 +992,7 @@ function 綁定法會報到事件(el清單) {
     e.preventDefault();
     if (el表單.dataset.報到表單 === '時段') 處理報到時段表單(el表單);
     if (el表單.dataset.報到表單 === '用齋') 處理合併用齋表單(el表單);
+    if (el表單.dataset.報到表單 === '範本') 處理活動範本表單_(el表單);      // v1.7.0
     if (el表單.dataset.報到表單 === '用齋登記表' || el表單.dataset.報到表單 === '副會長回報表') 處理用齋登記表表單(el表單);
   });
 }

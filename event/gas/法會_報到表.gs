@@ -2,7 +2,8 @@
 // 檔案名稱：法會_報到表.gs
 // 所屬模組：法會活動（event）
 // 所屬層級：模組／服務層＋控制層
-// 檔案版本：v1.3.0（2026-11-08）
+// 檔案版本：v1.4.0（2026-11-10）
+//   v1.4.0：報到表依這場活動的「報到表範本」排欄（法會_報到表範本，決策 BL）；名冊人員附 obj欄值（任一名冊欄可印）
 //   v1.3.0：新版名冊（提醒、回報、用齋整合在備註；性別、義工組別、需要坐椅子標準欄）的讀取；舊版名冊照舊讀
 //   v1.2.1：備註再加副會長回報（靠背椅・梵唄／不參加：請假）
 //   v1.2.0：名冊的用齋（義工組別・餐別×份數）印在報到表備註，報到表格也帶出（法會_用齋登記）
@@ -452,39 +453,38 @@ function 報到表日期文字_(dat) {
 /**
  * ============================================================================
  * 函式名稱：組合報到表內容_（內部使用）
- * 版本：v1.0.0（2026-11-06）
+ * 版本：v2.0.0（2026-11-10）　v2.0.0：依報到表範本排欄（arr範本欄位；沒傳＝標準：序號、姓名、法名、報名登記、時段、備註）
  * ----------------------------------------------------------------------------
  * 用途：
  *   純計算：組出報到表每一格的值、底色、字級與欄寬（寫入由 寫入報到表分頁_ 負責）。
- *     第 1 列：標題（左）、日期（右，合併時段欄到備註欄）
- *     第 2 列：序號｜姓名｜法名｜報名登記｜各時段（名稱換行起-迄）｜備註
- *     第 3 列起：依 排序報到人員_ 的人員；沒有報名的時段格淺灰；提醒簡稱印在備註；
- *                之後補空白列到滿頁（序號照編）
+ *     第 1 列：標題（左，合併到時段欄前）、日期（右，合併時段欄到最後一欄）
+ *     第 2 列：範本欄名（時段欄＝名稱換行起-迄）
+ *     第 3 列起：依 排序報到人員_ 的人員；沒有報名的時段格淺灰；之後補空白列到滿頁（序號照編）
  * 參數：obj參數 {Object} {
- *   str標題, str日期, arr時段（不分時段時傳空陣列）, arr人員: [ { str姓名, str法名, arr報名序, str報名登記, str提醒 } ]
+ *   str標題, str日期, arr時段（不分時段時傳空陣列）,
+ *   arr人員: [ { str姓名, str法名, arr報名序, str報名登記, str提醒, str回報, str用齋, obj欄值 } ],
+ *   arr範本欄位 {string[]=}（法會_報到表範本）
  * }
  * 傳回：{Object} {
  *   arr欄名, arr值（含第 1、2 列）, arr底色, arr字級, arr欄寬, int時段起欄（1 起算）, int時段數,
- *   int人數, int頁數, int空白列, bool筆畫
+ *   int人數, int頁數, int空白列, bool筆畫, bool擠
  * }
  * ============================================================================
  */
 function 組合報到表內容_(obj參數) {
   const cfg = obj報到表格式;
   const arr時段 = obj參數.arr時段 && obj參數.arr時段.length >= 2 ? obj參數.arr時段 : [];
-  const int時段數 = Math.max(arr時段.length, 1);
+  const arr範本欄位 = obj參數.arr範本欄位 && obj參數.arr範本欄位.length > 0
+    ? obj參數.arr範本欄位 : obj報到表範本格式.arr內建[0].arr欄位;
 
-  // ① 欄名與欄寬
-  const arr時段欄名 = arr時段.length > 0
-    ? arr時段.map(function (o) { return `${o.str名稱}\n${o.str起迄}`; })
-    : [cfg.str單一時段欄名];
-  const arr欄名 = ['序號', '姓名', '法名', '報名登記'].concat(arr時段欄名, ['備註']);
-  const int固定寬 = cfg.obj固定欄寬.序號 + cfg.obj固定欄寬.姓名 + cfg.obj固定欄寬.法名 + cfg.obj固定欄寬.報名登記 + cfg.obj固定欄寬.備註;
-  const int時段寬 = Math.min(cfg.int時段欄寬上限, Math.floor((cfg.int可用寬度 - int固定寬) / int時段數));
-  const arr欄寬 = [cfg.obj固定欄寬.序號, cfg.obj固定欄寬.姓名, cfg.obj固定欄寬.法名, cfg.obj固定欄寬.報名登記]
-    .concat(new Array(int時段數).fill(int時段寬), [cfg.obj固定欄寬.備註]);
-  const int欄數 = arr欄名.length;
-  const int時段起欄 = 5;
+  // ① 欄名與欄寬（法會_報到表範本）
+  const obj展開 = 展開範本欄位_(arr範本欄位, arr時段);
+  const arr欄 = obj展開.arr欄;
+  const int時段數 = obj展開.int時段數;
+  const int時段起欄 = obj展開.int時段起欄;
+  const arr欄名 = arr欄.map(function (o) { return o.str欄名; });
+  const arr欄寬 = arr欄.map(function (o) { return o.int寬; });
+  const int欄數 = arr欄.length;
 
   // ② 排序與列數
   const obj排序 = 排序報到人員_(obj參數.arr人員 || [], int時段數);
@@ -498,28 +498,31 @@ function 組合報到表內容_(obj參數) {
   const arr值 = [arr標題列, arr欄名.slice()];
   const arr底色 = [fn空列(null), fn空列(cfg.str欄名底色)];
   const arr字級 = [fn空列(cfg.int標題字級), fn空列(cfg.int字級)];
-  if (arr時段.length > 0) for (let j = 0; j < int時段數; j++) arr字級[1][int時段起欄 - 1 + j] = cfg.int時段欄名字級;
+  if (arr時段.length > 0) arr欄.forEach(function (c, k) { if (c.str類 === '時段') arr字級[1][k] = cfg.int時段欄名字級; });
+  const arr小字欄 = obj報到表範本格式.arr小字欄;
 
   for (let i = 0; i < obj列數.int總列數; i++) {
     const o = obj排序.arr人員[i];
     const arr列 = fn空列('');
     const arr色 = fn空列(null);
     const arr級 = fn空列(cfg.int字級);
-    arr列[0] = i + 1;
-    if (o) {
-      arr列[1] = o.str姓名 || '';
-      arr列[2] = o.str法名 || '';
-      // 報名登記：部分時段以「、」分隔，紙本改為換行並用小字（一格放兩行）
-      const str登記 = String(o.str報名登記 || '');
-      arr列[3] = str登記.indexOf('、') !== -1 ? str登記.split('、').join('\n') : str登記;
-      if (arr列[3].indexOf('\n') !== -1 || arr列[3].length > 8) arr級[3] = cfg.int小字級;
-      // 沒有報名的時段淺灰；一個都對不到（arr報名序 空）時不塗，避免誤導
-      if (o.arr報名序 && o.arr報名序.length > 0) {
-        for (let j = 0; j < int時段數; j++) { if (o.arr報名序.indexOf(j) === -1) arr色[int時段起欄 - 1 + j] = cfg.str淺灰; }
+    arr欄.forEach(function (c, k) {
+      if (c.str類 === '序號') { arr列[k] = i + 1; return; }
+      if (!o) return;
+      if (c.str類 === '時段') {
+        // 沒有報名的時段淺灰；一個都對不到（arr報名序 空）時不塗，避免誤導
+        if (o.arr報名序 && o.arr報名序.length > 0 && o.arr報名序.indexOf(c.int時段序) === -1) arr色[k] = cfg.str淺灰;
+        return;
       }
-      arr列[int欄數 - 1] = [提醒簡稱_(o.str提醒), o.str回報 || '', o.str用齋 || ''].filter(Boolean).join('、');   // 提醒簡稱＋副會長回報＋用齋
-      arr級[int欄數 - 1] = cfg.int小字級;
-    }
+      let str值 = 取得報到欄位值_(o, c.str鍵);
+      // 報名登記、報名內容：部分時段以「、」分隔，紙本改為換行（一格放兩行）
+      if (c.str鍵 === '報名登記' || c.str鍵 === '報名內容') str值 = str值.indexOf('、') !== -1 ? str值.split('、').join('\n') : str值;
+      arr列[k] = str值;
+      // 小字：備註類一律；報名登記等太長或換行時
+      if (c.str鍵 === '備註' || c.str鍵 === '名冊備註' || c.str鍵 === '來源列') arr級[k] = cfg.int小字級;
+      else if (arr小字欄.indexOf(c.str鍵) !== -1 && (str值.indexOf('\n') !== -1 || str值.length > 8)) arr級[k] = cfg.int小字級;
+      else if (str值.length > Math.max(4, Math.floor(c.int寬 / 15))) arr級[k] = cfg.int小字級;   // 名冊其他欄太長
+    });
     arr值.push(arr列);
     arr底色.push(arr色);
     arr字級.push(arr級);
@@ -528,7 +531,8 @@ function 組合報到表內容_(obj參數) {
   return {
     arr欄名: arr欄名, arr值: arr值, arr底色: arr底色, arr字級: arr字級, arr欄寬: arr欄寬,
     int時段起欄: int時段起欄, int時段數: int時段數,
-    int人數: obj排序.arr人員.length, int頁數: obj列數.int頁數, int空白列: obj列數.int空白列, bool筆畫: obj排序.bool筆畫
+    int人數: obj排序.arr人員.length, int頁數: obj列數.int頁數, int空白列: obj列數.int空白列, bool筆畫: obj排序.bool筆畫,
+    bool擠: obj展開.bool擠
   };
 }
 
@@ -639,9 +643,12 @@ function 取得名冊報到人員_(obj名冊分頁, arr時段) {
       str報名登記 = 產生報名登記_(arr報名序, arr時段, str報名內容);
       if (obj對應.arr對不到.length > 0 && str提醒.indexOf('對不到時段') === -1) str提醒 += (str提醒 ? '；' : '') + '報名內容對不到時段';
     }
+    // v1.4.0：名冊每一欄的文字（報到表範本可印任一名冊欄）
+    const obj欄值 = {};
+    obj內容.arr標題.forEach(function (str欄) { if (str欄) obj欄值[str欄] = 出車一般值轉文字_(o[str欄]); });
     return {
       str姓名: 正規化人名(o['姓名']), str法名: 正規化人名(o['法名']), str學員編號: 正規化學員編號(o['學員編號']),
-      arr報名序: arr報名序, str報名登記: str報名登記, str提醒: str提醒,
+      arr報名序: arr報名序, str報名登記: str報名登記, str提醒: str提醒, obj欄值: obj欄值,
       // 報到表備註：坐椅子・組別・不參加／待確認（str回報）、用齋（str用齋）
       str回報: o['用齋'] !== undefined || o['副會長回報'] !== undefined
         ? 組合回報說明_(出車一般值轉文字_(o['副會長回報']), 出車一般值轉文字_(o['回報座位']), 出車一般值轉文字_(o['回報執事']), 出車一般值轉文字_(o['不參加原因']))
@@ -651,7 +658,7 @@ function 取得名冊報到人員_(obj名冊分頁, arr時段) {
         : 名冊備註取段_(o['備註'], obj報到名冊格式.obj備註標籤.用齋)
     };
   });
-  return { arr人員: arr人員, bool重新判斷: bool分時段 && !bool依打勾 };
+  return { arr人員: arr人員, bool重新判斷: bool分時段 && !bool依打勾, arr標題: obj內容.arr標題 };
 }
 
 
@@ -802,7 +809,7 @@ function 產生報到表列印網址_(str副本ID, int分頁ID) {
  * 參數：
  *   obj副本     {Spreadsheet}
  *   str場次     {string}   場次名稱（欄名原文）
- *   obj設定     {Object}   { str標題, arr時段, dat基準 }
+ *   obj設定     {Object}   { str標題, arr時段, dat基準, obj範本（取得活動報到表範本_ 的結果；沒有＝標準） }
  * 傳回：{Object} { str訊息, arr明細, str分頁名, str列印網址, int人數, int頁數, int空白列 }
  * ============================================================================
  */
@@ -820,7 +827,11 @@ function 產生報到表_(obj副本, str場次, obj設定) {
   const dat場次 = arr月日.length > 0 ? 推算月日日期_(arr月日[0], obj設定.dat基準 || new Date()) : null;
 
   // ③ 組合與寫入
-  const obj內容 = 組合報到表內容_({ str標題: obj設定.str標題, str日期: 報到表日期文字_(dat場次), arr時段: arr時段, arr人員: obj人員.arr人員 });
+  const obj範本 = obj設定.obj範本 || { obj範本: 列出全部報到表範本_([])[0], str提醒: '' };   // v1.4.0：報到表範本
+  const obj內容 = 組合報到表內容_({
+    str標題: obj設定.str標題, str日期: 報到表日期文字_(dat場次), arr時段: arr時段, arr人員: obj人員.arr人員,
+    arr範本欄位: obj範本.obj範本.arr欄位
+  });
   const obj既有 = 找出報到表分頁_(obj副本, str選擇);
   const str新名稱 = (function () {
     if (obj既有) return obj既有.getName();
@@ -836,10 +847,15 @@ function 產生報到表_(obj副本, str場次, obj設定) {
   // ④ 結果說明
   const arr明細 = [];
   arr明細.push(`報名 ${obj內容.int人數} 人，共 ${obj內容.int頁數} 頁，最後一頁留 ${obj內容.int空白列} 列空白供手寫未報名的人`);
+  arr明細.push(`報到表範本「${obj範本.obj範本.str名稱}」：${obj範本.obj範本.arr欄位.join('、')}`);
+  if (obj範本.str提醒) arr明細.push(obj範本.str提醒);
+  const arr缺欄 = 找出名冊沒有的範本欄_(obj範本.obj範本.arr欄位, obj人員.arr標題);
+  if (arr缺欄.length > 0) arr明細.push(`這場名冊沒有「${arr缺欄.join('」「')}」欄，報到表這幾欄是空白（報名表沒有這題、或承辦人還沒在名冊加這欄）`);
+  if (obj內容.bool擠) arr明細.push('欄位比較多，各欄已縮小，字可能擠；可以改用欄位較少的範本');
   if (arr時段.length >= 2) arr明細.push(`時段：${格式化時段設定_(arr時段)}（灰底＝沒有報名這個時段）`);
   if (obj人員.bool重新判斷) arr明細.push('名冊的時段欄和目前的報到時段設定不同（名冊可能是設定時段前下載的），已依「報名內容」重新判斷；建議重新下載這個場次的名冊');
   const int提醒 = obj人員.arr人員.filter(function (o) { return 提醒簡稱_(o.str提醒) !== ''; }).length;
-  if (int提醒 > 0) arr明細.push(`${int提醒} 人有提醒，已印在備註欄（取消？、同名、編號待填、時段？），詳細請看名冊的「提醒」欄`);
+  if (int提醒 > 0 && obj範本.obj範本.arr欄位.indexOf('備註') !== -1) arr明細.push(`${int提醒} 人有提醒，已印在備註欄（取消？、同名、編號待填、時段？），詳細請看名冊「備註」欄的「提醒：」`);
   if (!obj內容.bool筆畫) arr明細.push('這台主機不支援中文筆畫排序，同組內改依電腦內碼排序');
   arr明細.push('列印：按視窗中的「開啟 PDF 列印」，印表機設定選「實際大小（100%）」；也可以用「檔案 → 列印」');
 
@@ -1041,7 +1057,8 @@ function 副本選單_列印報到表(obj工作階段, obj參數) {
   const obj設定 = {
     str標題: 報到表標題_(obj.obj身分.str精舍代號, obj.obj活動值),
     arr時段: 取得活動時段_(obj.obj活動值),
-    dat基準: 取得場次基準日_(obj.obj活動值)
+    dat基準: 取得場次基準日_(obj.obj活動值),
+    obj範本: 取得活動報到表範本_(obj.obj主控台, obj.obj活動值)      // v1.4.0
   };
   const obj結果 = 以活動作業鎖執行_(obj.obj身分.str精舍代號, str活動ID, '列印報到表', function () {
     return 產生報到表_(obj.obj副本, str場次, obj設定);
@@ -1114,7 +1131,8 @@ function 列印法會報到表(obj工作階段, obj參數) {
   const obj設定 = {
     str標題: 報到表標題_(obj工作階段.str精舍代號, obj.obj活動值),
     arr時段: 取得活動時段_(obj.obj活動值),
-    dat基準: 取得場次基準日_(obj.obj活動值)
+    dat基準: 取得場次基準日_(obj.obj活動值),
+    obj範本: 取得活動報到表範本_(obj.obj主控台, obj.obj活動值)      // v1.4.0
   };
   const obj結果 = 以活動作業鎖執行_(obj工作階段.str精舍代號, str活動ID, '列印報到表', function () {
     return 產生報到表_(開啟活動副本_(obj.obj活動值), str場次, obj設定);

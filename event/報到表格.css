@@ -1,7 +1,8 @@
 /* ============================================================================
    檔案名稱：event/報到表格.css
    所屬模組：法會活動（event）
-   檔案版本：v1.2.0（2026-11-07）　v1.2.0：取消欄、保留列、請假列、場次取消說明
+   檔案版本：v1.3.0（2026-11-10）　v1.3.0：報到表範本的名冊其他欄（td.欄）最小寬度、可換行
+             v1.2.0：取消欄、保留列、請假列、場次取消說明
              v1.1.0：索引標籤「全部｜已報到｜未報到」、報到頁四個標籤
    用途說明：報到表格元件（報到表格.js）與報到頁（checkin.html）的樣式。
              顏色、字型沿用 core/shared/base.css 的變數。
@@ -25,6 +26,8 @@
 .報到表格 td.法名, .報到表格 td.備註 { white-space: nowrap; }
 .報到表格 td.登記 { font-size: 0.8125rem; white-space: pre-line; color: var(--色-淡字); }
 .報到表格 td.備註 { font-size: 0.8125rem; color: #7A5F2B; }
+/* v1.3.0：報到表範本的其他欄（義工組別、班別、座位…）：不要被擠成一字一行 */
+.報到表格 td.欄 { min-width: 5em; white-space: pre-line; font-size: 0.875rem; }
 .報到表格 tr.提醒列 td { background: #FFF8E1; }
 .報到表格 tr.區隔 td { background: var(--色-底); text-align: left; font-size: 0.8125rem; color: var(--色-淡字); }
 .報到表格 tr.閃爍 td { animation: 報到閃爍 1.6s ease-out; }
